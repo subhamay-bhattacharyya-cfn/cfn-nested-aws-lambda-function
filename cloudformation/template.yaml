@@ -115,12 +115,14 @@ Parameters:
     Description: Enable VPC configuration for Lambda function
 
   VPCSubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: List of VPC subnet IDs (required if EnableVPC is true)
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Comma-delimited list of VPC subnet IDs (required if EnableVPC is true)
 
   VPCSecurityGroupIds:
-    Type: List<AWS::EC2::SecurityGroup::Id>
-    Description: List of VPC security group IDs (required if EnableVPC is true)
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Comma-delimited list of VPC security group IDs (required if EnableVPC is true)
 
   EphemeralStorage:
     Type: Number
@@ -144,12 +146,26 @@ Parameters:
     Type: String
     Description: ARN of IAM role for Lambda function execution (must be created externally)
 
+  CiSuffix:
+    Type: String
+    Default: ''
+    Description: Optional suffix for CI/CD deployments (appended to function name with hyphen)
+    AllowedPattern: "^[a-z0-9-]*$"
+    ConstraintDescription: CiSuffix must be lowercase letters, numbers, and hyphens only
+    
 Conditions:
   HasS3Bucket: !Not [!Equals [!Ref S3Bucket, ""]]
   HasS3Key: !Not [!Equals [!Ref S3Key, ""]]
   HasS3ObjectVersion: !Not [!Equals [!Ref S3ObjectVersion, ""]]
+  HasCiSuffix: !Not [!Equals [!Ref CiSuffix, ""]]
   HasLayers: !Not [!Equals [!Select [0, !Ref LambdaLayerArns], ""]]
   EnableVPCConfig: !Equals [!Ref EnableVPC, 'true']
+  HasVPCSubnets: !Not [!Equals [!Select [0, !Ref VPCSubnetIds], ""]]
+  HasVPCSecurityGroups: !Not [!Equals [!Select [0, !Ref VPCSecurityGroupIds], ""]]
+  ConfigureVPC: !And
+    - !Condition EnableVPCConfig
+    - !Condition HasVPCSubnets
+    - !Condition HasVPCSecurityGroups
   EnableDLQConfig: !Equals [!Ref EnableDeadLetterQueue, 'true']
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrentExecutions, -1]]
   HasDynamoDBTable: !Not [!Equals [!Ref DynamoDBTableName, ""]]
@@ -160,8 +176,14 @@ Resources:
     Type: AWS::Lambda::Function
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
+    Metadata:
+      aws:cloudformation:Context:
+        why: Creates a Lambda function with flexible configuration supporting dual deployment modes (S3-based or inline boilerplate code), optional VPC integration for database access, DLQ for async failures, Lambda Layers, and CloudWatch Logs integration
     Properties:
-      FunctionName: !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}'
+      FunctionName: !If
+        - HasCiSuffix
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-${CiSuffix}'
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}'
       Runtime: !Ref Runtime
       Handler: !Ref Handler
       Role: !Ref IAMRoleArn
@@ -178,7 +200,7 @@ Resources:
         Size: !Ref EphemeralStorage
       Layers: !If [HasLayers, !Ref LambdaLayerArns, !Ref 'AWS::NoValue']
       VpcConfig: !If
-        - EnableVPCConfig
+        - ConfigureVPC
         - SubnetIds: !Ref VPCSubnetIds
           SecurityGroupIds: !Ref VPCSecurityGroupIds
         - !Ref 'AWS::NoValue'

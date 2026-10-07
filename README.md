@@ -73,6 +73,7 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 | `ProjectName` | String | `proj-ztc` | Project name prefix (lowercase, alphanumeric, hyphens only) |
 | `LambdaFunctionBaseName` | String | `lambda-function` | Base name for Lambda function |
 | `Environment` | String | `devl` | Deployment environment (devl, stag, prod) |
+| `CiSuffix` | String | `` | Optional suffix for CI/CD deployments (appended to function name) |
 
 ### Runtime Configuration
 
@@ -107,13 +108,13 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 |-----------|------|---------|-------------|
 | `ReservedConcurrentExecutions` | Number | `-1` | Reserved concurrency (-1 = no reservation) |
 | `EphemeralStorage` | Number | `512` | Ephemeral storage in MB (512-10240) |
-| `LambdaLayerArns` | CommaDelimitedList | `` | Lambda Layer ARNs to attach |
+| `LambdaLayerArns` | CommaDelimitedList | `` | Lambda Layer ARNs to attach (comma-delimited) |
 | `EnableVPC` | String | `false` | Enable VPC configuration (true/false) |
-| `VPCSubnetIds` | List | `` | VPC subnet IDs (required if EnableVPC=true) |
-| `VPCSecurityGroupIds` | List | `` | VPC security group IDs (required if EnableVPC=true) |
+| `VPCSubnetIds` | CommaDelimitedList | `` | VPC subnet IDs, comma-delimited (required if EnableVPC=true) |
+| `VPCSecurityGroupIds` | CommaDelimitedList | `` | VPC security group IDs, comma-delimited (required if EnableVPC=true) |
 | `EnableDeadLetterQueue` | String | `false` | Enable DLQ for failed async invocations |
 | `DeadLetterQueueArn` | String | `` | SQS queue or SNS topic ARN for DLQ |
-| `IAMRoleArn` | String | `` | IAM role ARN for Lambda execution (must be created externally) |
+| `IAMRoleArn` | String | (required) | IAM role ARN for Lambda execution (must be created externally) |
 
 ## Outputs
 
@@ -182,12 +183,14 @@ def lambda_handler(event, context):
 Lambda function names follow this pattern:
 
 ```bash
-{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}
+{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}[-{CiSuffix}]
 ```
 
-**Example:** `proj-ztc-data-processor-devl-us-east-1`
+**Examples:**
+- `proj-ztc-data-processor-devl-us-east-1` (standard)
+- `proj-ztc-data-processor-devl-us-east-1-ci-123` (with CI suffix)
 
-**Note:** Unlike other resources, Lambda function names do not include AWS Account ID since they are scoped to an account and region.
+**Note:** Unlike other resources, Lambda function names do not include AWS Account ID since they are scoped to an account and region. The CiSuffix is optional and typically used for CI/CD deployments to create unique function names for ephemeral testing.
 
 ## Prerequisites
 
@@ -235,6 +238,18 @@ aws logs put-retention-policy \
 aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
 ```
 
+## CommaDelimitedList Parameters
+
+Some parameters accept comma-delimited values (VPCSubnetIds, VPCSecurityGroupIds, LambdaLayerArns). Pass them as quoted comma-separated strings:
+
+```bash
+VPCSubnetIds='subnet-12345,subnet-67890'
+VPCSecurityGroupIds='sg-abc,sg-def'
+LambdaLayerArns='arn:aws:lambda:region:account:layer:name1:1,arn:aws:lambda:region:account:layer:name2:1'
+```
+
+CloudFormation automatically converts these to arrays for use in the template.
+
 ## Best Practices
 
 - ✅ Use externally-managed IAM roles for security isolation
@@ -248,7 +263,7 @@ aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
 
 ## Examples
 
-### Example 1: Python Function with DynamoDB Access
+### Example 1: Python Function with DynamoDB Access and VPC
 
 ```bash
 aws cloudformation deploy \
@@ -264,11 +279,12 @@ aws cloudformation deploy \
     S3Bucket=lambda-code-bucket \
     S3Key=user-processor.zip \
     DynamoDBTableName=users-table \
-    LambdaLogGroup=/aws/lambda/user-processor \
-    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-role \
+    LambdaLogGroup=/aws/lambda/user-processor-prod-us-east-1 \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-execution-role \
     EnableVPC=true \
-    VPCSubnetIds=subnet-123,subnet-456 \
-    VPCSecurityGroupIds=sg-789
+    VPCSubnetIds='subnet-12345678,subnet-87654321' \
+    VPCSecurityGroupIds='sg-abcdef123' \
+    ReservedConcurrentExecutions=50
 ```
 
 ### Example 2: Node.js Function with Quick Start Boilerplate

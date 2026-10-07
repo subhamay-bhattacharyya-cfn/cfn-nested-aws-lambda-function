@@ -34,5 +34,9 @@
   {
     "ParameterKey": "LambdaLogGroup",
     "ParameterValue": "/aws/lambda/proj-ztc-ci-test-function-devl-us-east-1"
+  },
+  {
+    "ParameterKey": "CiSuffix",
+    "ParameterValue": ""
   }
 ]

@@ -88,18 +88,21 @@ This repo provides a **nested stack template** — a template that is referenced
 Function names follow a deterministic pattern driven by parameters:
 
 ```bash
-{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}
+{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}[-{CiSuffix}]
 ```
 
-Example: `proj-ztc-data-processor-devl-us-east-1`
+Examples:
+- Standard: `proj-ztc-data-processor-devl-us-east-1`
+- With CI suffix: `proj-ztc-data-processor-devl-us-east-1-ci-123`
 
 This ensures:
 
 - Consistency across deployments
 - Environment isolation
 - Predictable naming for infrastructure automation
+- Unique names for CI/CD ephemeral deployments (via optional CiSuffix)
 
-**Note:** Unlike other AWS resources, Lambda function names do NOT include Account ID (they're scoped to account+region already).
+**Note:** Unlike other AWS resources, Lambda function names do NOT include Account ID (they're scoped to account+region already). The CiSuffix is optional and typically used for CI/CD testing to create unique function names without colliding with permanent deployments.
 
 ### Dual Deployment Modes
 
@@ -115,6 +118,20 @@ The template supports two ways to provide Lambda function code:
    - Uses default "Hello World" Python function
    - For testing, prototypes, or quick deployments
    - Code: `def lambda_handler(event, context): return {'statusCode': 200, 'body': 'Hello World'}`
+
+### CommaDelimitedList Parameters
+
+The template uses CloudFormation's `CommaDelimitedList` type for parameters that need to accept multiple values:
+
+- `VPCSubnetIds` — Accepts comma-delimited subnet IDs (e.g., `'subnet-123,subnet-456'`)
+- `VPCSecurityGroupIds` — Accepts comma-delimited security group IDs (e.g., `'sg-abc,sg-def'`)
+- `LambdaLayerArns` — Accepts comma-delimited Lambda Layer ARNs
+
+**How it works:**
+1. Parameters are passed as quoted comma-delimited strings in CLI or JSON files
+2. CloudFormation automatically converts them to arrays/lists
+3. Conditions check if these parameters are non-empty before using them
+4. Only applied to the function when their associated feature is enabled (e.g., VPC config only applies if EnableVPC=true and both subnet/security group IDs are provided)
 
 ### External Resource Management
 
@@ -141,6 +158,7 @@ This separation provides:
 - `ProjectName` (default: `proj-ztc`): Project prefix
 - `LambdaFunctionBaseName` (default: `lambda-function`): Base function name
 - `Environment`: Environment label (devl, stag, prod)
+- `CiSuffix` (optional): Suffix for CI/CD deployments (appended to function name)
 - `Runtime`: Lambda runtime (python3.13, python3.12, nodejs24.x, nodejs20.x)
 - `S3Bucket` / `S3Key`: Code location (leave empty for inline boilerplate)
 - `LambdaLogGroup`: External CloudWatch Log Group name
@@ -362,4 +380,6 @@ Main branch is the release branch. Feature work branches from here and merges ba
 3. **Dual Deployment Modes**: Support both S3-based and inline boilerplate code for flexibility
 4. **Python/Node.js Only**: Limited runtimes to most commonly-used (Python 3.12/3.13, Node.js 20.x/24.x)
 5. **Parameterized Configuration**: Environment-specific values in parameter files, not hardcoded
-6. **Semantic Versioning**: Automated releases on main branch based on conventional commits
+6. **CommaDelimitedList Parameters**: Use CloudFormation's CommaDelimitedList type for multi-value parameters (VPC subnets, security groups, Lambda Layer ARNs)
+7. **Conditional VPC Configuration**: VPC only configured when EnableVPC=true AND both subnet and security group IDs are non-empty
+8. **Semantic Versioning**: Automated releases on main branch based on conventional commits
