@@ -1,7 +1,7 @@
 {
-  "name": "cloudformation-template",
+  "name": "cfn-nested-aws-lambda-function",
   "version": "0.0.0",
-  "description": "CloudFormation template repository with semantic versioning and automated release management.",
+  "description": "Reusable CloudFormation nested stack templates for Lambda functions with security best practices, semantic versioning and automated release management.",
   "main": "index.js",
   "scripts": {
     "release": "semantic-release"

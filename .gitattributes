@@ -1,0 +1,39 @@
+# Auto detect text files and normalize line endings to LF
+* text=auto
+
+# CloudFormation and YAML files
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+
+# Templates and configuration
+*.template text eol=lf
+*.toml text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# Git-related files
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.tar binary
+*.gz binary
+
+# Node.js and npm
+package.json text eol=lf
+package-lock.json text eol=lf
+*.node binary
+
+# Prevent conflicts on common files
+CHANGELOG.md merge=union
