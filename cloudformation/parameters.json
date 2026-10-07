@@ -1,4 +1,38 @@
-{
-  "Environment": "devl",
-  "CiSuffix": ""
-}
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "proj-ztc"
+  },
+  {
+    "ParameterKey": "LambdaFunctionBaseName",
+    "ParameterValue": "ci-test-function"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "devl"
+  },
+  {
+    "ParameterKey": "Runtime",
+    "ParameterValue": "python3.12"
+  },
+  {
+    "ParameterKey": "Handler",
+    "ParameterValue": "index.handler"
+  },
+  {
+    "ParameterKey": "MemorySize",
+    "ParameterValue": "256"
+  },
+  {
+    "ParameterKey": "Timeout",
+    "ParameterValue": "60"
+  },
+  {
+    "ParameterKey": "IAMRoleArn",
+    "ParameterValue": "arn:aws:iam::123456789012:role/lambda-execution-role"
+  },
+  {
+    "ParameterKey": "LambdaLogGroup",
+    "ParameterValue": "/aws/lambda/proj-ztc-ci-test-function-devl-us-east-1"
+  }
+]
