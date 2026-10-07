@@ -1,4 +1,4 @@
-# CloudFormation DynamoDB Table Template Repository
+# CloudFormation Lambda Function Template Repository
 
 <!-- Row 1: Status - Most Important -->
 [![Release](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/actions/workflows/release.yaml/badge.svg)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/issues)&nbsp;[![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/commits)
@@ -7,7 +7,7 @@
 [![Top Language](https://img.shields.io/github/languages/top/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![Commits](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/commits)
 
 <!-- Row 3: Tech Stack -->
-[![CloudFormation](https://img.shields.io/badge/CloudFormation-IaC-orange?logo=amazon&logoColor=white)](https://aws.amazon.com/cloudformation/)&nbsp;[![DynamoDB](https://img.shields.io/badge/DynamoDB-NoSQL-brightgreen?logo=amazon&logoColor=white)](https://aws.amazon.com/dynamodb/)&nbsp;[![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.ai/)
+[![CloudFormation](https://img.shields.io/badge/CloudFormation-IaC-orange?logo=amazon&logoColor=white)](https://aws.amazon.com/cloudformation/)&nbsp;[![Lambda](https://img.shields.io/badge/Lambda-Compute-FF9900?logo=amazon&logoColor=white)](https://aws.amazon.com/lambda/)&nbsp;[![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.ai/)
 
 <!-- Row 4: Repository Info -->
 [![Files](https://img.shields.io/github/directory-file-count/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![Repo Size](https://img.shields.io/github/repo-size/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![Release Date](https://img.shields.io/github/release-date/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/releases)
@@ -15,343 +15,295 @@
 <!-- Row 5: Custom Metrics -->
 [![Custom Endpoint](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/26af28965bb1fafbf0d0cdfc4e443c26/raw/cfn-nested-aws-lambda-function.json)](https://gist.github.com/subhamay-bhattacharyya/26af28965bb1fafbf0d0cdfc4e443c26)
 
-This repository contains a nested CloudFormation template for deploying DynamoDB tables with flexible configuration, security best practices, and support for advanced features like streams, indexes, and encryption.
+This repository contains a reusable CloudFormation nested stack template for deploying AWS Lambda functions with flexible configuration, security best practices, and support for advanced features like VPC integration, DLQ, and Lambda Layers.
 
 ## Overview
 
-This is a **nested stack template** designed to be invoked from a parent/root CloudFormation stack. The template is stored in this repository and should be uploaded to an S3 bucket for reference by parent stacks.
+This is a **nested stack template** designed to be invoked from a parent/root CloudFormation stack. The template supports two deployment modes:
+
+1. **S3-based Code** — Deploy Lambda function code from an S3 bucket
+2. **Inline Boilerplate** — Deploy a "Hello World" function without S3 code
+
+The template is stored in this repository and should be uploaded to an S3 bucket for reference by parent stacks.
 
 ## Template Files
 
 ### CloudFormation Templates
 
-- **`templates/dynamodb-table.yaml`** — Nested template for DynamoDB table creation with support for:
-  - Flexible billing modes (on-demand or provisioned)
-  - Custom partition and sort keys
-  - Local Secondary Indexes (LSI)
-  - Global Secondary Indexes (GSI)
-  - DynamoDB Streams
-  - Point-in-time recovery
-  - TTL (Time-to-Live)
-  - KMS encryption
+- **`cloudformation/template.yaml`** — Nested template for Lambda function deployment with support for:
+  - Python (3.12, 3.13) and Node.js (20.x, 24.x) runtimes
+  - S3-based code deployment OR inline boilerplate code
+  - Flexible memory (128-10,240 MB) and timeout (1-900 seconds)
+  - VPC integration for secure database access
+  - CloudWatch Logs with JSON structured logging
+  - Dead Letter Queue (DLQ) support for async invocations
+  - Lambda Layers attachment
+  - Reserved concurrent execution limits
+  - Environment variable configuration
+  - External IAM role and CloudWatch Log Group management
 
 ### Parameter Files
 
-- **`parameters/dynamodb-dev.json`** — Development environment parameters
-- **`parameters/dynamodb-staging.json`** — Staging environment parameters
-- **`parameters/dynamodb-prod.json`** — Production environment parameters
+- **`cloudformation/lambda-parameters-dev.json`** — Development (256 MB, no VPC)
+- **`cloudformation/lambda-parameters-stag.json`** — Staging (512 MB, VPC enabled)
+- **`cloudformation/lambda-parameters-prod.json`** — Production (1024 MB, VPC enabled)
 
 ## Template Features
 
-### DynamoDB Table Template (dynamodb-table.yaml)
+### Lambda Function Template (template.yaml)
 
-- ✅ **Flexible Billing** — On-demand (PAY_PER_REQUEST) or provisioned capacity
-- ✅ **Custom Key Schema** — Configurable partition and sort keys with multiple data types
-- ✅ **Local Secondary Indexes** — LSI support for alternative sort keys on the same partition key
-- ✅ **Global Secondary Indexes** — GSI with optional sort key and independent provisioning
-- ✅ **DynamoDB Streams** — Enable change data capture with multiple view types
-- ✅ **Point-in-Time Recovery** — Restore tables to any point in time
-- ✅ **TTL (Time-to-Live)** — Automatic item expiration
-- ✅ **KMS Encryption** — Support for customer-managed or AWS-managed keys
-- ✅ **Smart Table Naming** — Project prefix, account ID, environment, region with optional CI suffix
-- ✅ **Data Retention** — Automatic retention policy (no deletion on stack removal)
+- ✅ **Flexible Runtimes** — Python 3.12/3.13 and Node.js 20.x/24.x support
+- ✅ **Dual Code Sources** — Deploy from S3 bucket OR use inline boilerplate code
+- ✅ **Flexible Configuration** — Configurable memory (128-10240 MB), timeout (1-900 seconds)
+- ✅ **VPC Integration** — Optional VPC configuration for secure database access
+- ✅ **CloudWatch Logging** — JSON structured logging with configurable retention
+- ✅ **Dead Letter Queue** — Support for async invocation failure handling
+- ✅ **Lambda Layers** — Attach multiple layers for code sharing and dependencies
+- ✅ **Reserved Concurrency** — Control function scaling and cost
+- ✅ **Environment Variables** — Pre-configured variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
+- ✅ **External Resource Management** — IAM role and log group created externally
+- ✅ **Deterministic Naming** — Project prefix, function name, environment, region
 
 ## Parameters
 
-### Table Naming & Environment
+### Basic Configuration
 
 | Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
+|-----------|------|---------|-------------|
 | `ProjectName` | String | `proj-ztc` | Project name prefix (lowercase, alphanumeric, hyphens only) |
-| `TableBaseName` | String | `dynamodb-table` | Base name for the DynamoDB table |
+| `LambdaFunctionBaseName` | String | `lambda-function` | Base name for Lambda function |
 | `Environment` | String | `devl` | Deployment environment (devl, stag, prod) |
-| `CiSuffix` | String | `""` | Optional CI suffix to append to table name (e.g., pipeline ID) |
 
-### Billing & Throughput
-
-| Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `BillingMode` | String | `PAY_PER_REQUEST` | Billing mode (PAY_PER_REQUEST or PROVISIONED) |
-| `ProvisionedReadCapacity` | Number | `5` | Read capacity units (1-40000, only for PROVISIONED mode) |
-| `ProvisionedWriteCapacity` | Number | `5` | Write capacity units (1-40000, only for PROVISIONED mode) |
-
-### Primary Key Configuration
+### Runtime Configuration
 
 | Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `PartitionKeyName` | String | `PK` | Name of the partition key attribute |
-| `PartitionKeyType` | String | `S` | Data type: S (String), N (Number), or B (Binary) |
-| `SortKeyName` | String | `SK` | Name of the sort key (leave empty for no sort key) |
-| `SortKeyType` | String | `S` | Data type: S (String), N (Number), or B (Binary) |
+|-----------|------|---------|-------------|
+| `Runtime` | String | `python3.12` | Lambda runtime (python3.13, python3.12, nodejs24.x, nodejs20.x) |
+| `Handler` | String | `index.handler` | Function handler (e.g., lambda_function.lambda_handler) |
+| `MemorySize` | Number | `128` | Memory allocation in MB (128-10240) |
+| `Timeout` | Number | `30` | Function timeout in seconds (1-900) |
 
-### Encryption & Security
-
-| Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `KmsKey` | String | `SB-KMS` | KMS key for encryption (name, alias, or ARN; empty for AWS-managed key) |
-
-### Streams & CDC
+### Code Deployment
 
 | Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `EnableStreams` | String | `false` | Enable DynamoDB Streams (true or false) |
-| `StreamViewType` | String | `NEW_AND_OLD_IMAGES` | Stream info: KEYS_ONLY, NEW_IMAGE, OLD_IMAGE, or NEW_AND_OLD_IMAGES |
+|-----------|------|---------|-------------|
+| `S3Bucket` | String | `` | S3 bucket with Lambda code (leave empty for boilerplate code) |
+| `S3Key` | String | `` | S3 key for Lambda code zip file |
+| `S3ObjectVersion` | String | `` | Optional S3 object version ID |
+| `InlineCode` | String | `def lambda_handler(event, context): return {'statusCode': 200, 'body': 'Hello World'}` | Boilerplate code when S3Bucket is empty |
 
-### Backup & Recovery
-
-| Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `EnablePointInTimeRecovery` | String | `false` | Enable point-in-time recovery (true or false) |
-
-### TTL Configuration
+### Environment & Logging
 
 | Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `EnableTTL` | String | `false` | Enable TTL for automatic item expiration (true or false) |
-| `TTLAttributeName` | String | `ExpirationTime` | Name of the TTL attribute |
+|-----------|------|---------|-------------|
+| `EnvironmentNameValue` | String | `development` | Value for ENVIRONMENT variable |
+| `LogLevelValue` | String | `INFO` | Value for LOG_LEVEL variable (DEBUG, INFO, WARN, ERROR) |
+| `DynamoDBTableName` | String | `` | DynamoDB table name (optional, for DYNAMODB_TABLE env var) |
+| `LambdaLogGroup` | String | `` | CloudWatch Log Group name (must be created externally) |
 
-### Local Secondary Indexes
-
-| Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `LSI1Enabled` | String | `false` | Enable Local Secondary Index 1 (requires sort key on base table) |
-| `LSI1AttributeName` | String | `LSI1SK` | Sort key attribute name for LSI1 |
-| `LSI1AttributeType` | String | `S` | Data type: S (String), N (Number), or B (Binary) |
-
-### Global Secondary Indexes
+### Advanced Configuration
 
 | Parameter | Type | Default | Description |
-| ----------- | ------ | --------- | ------------- |
-| `GSI1Enabled` | String | `false` | Enable Global Secondary Index 1 |
-| `GSI1PartitionKeyName` | String | `GSI1PK` | Partition key attribute name for GSI1 |
-| `GSI1PartitionKeyType` | String | `S` | Data type: S (String), N (Number), or B (Binary) |
-| `GSI1SortKeyName` | String | `""` | Optional sort key attribute name for GSI1 |
-| `GSI1SortKeyType` | String | `S` | Data type: S (String), N (Number), or B (Binary) |
-| `GSI1ReadCapacity` | Number | `5` | Read capacity for GSI1 (only for PROVISIONED mode) |
-| `GSI1WriteCapacity` | Number | `5` | Write capacity for GSI1 (only for PROVISIONED mode) |
+|-----------|------|---------|-------------|
+| `ReservedConcurrentExecutions` | Number | `-1` | Reserved concurrency (-1 = no reservation) |
+| `EphemeralStorage` | Number | `512` | Ephemeral storage in MB (512-10240) |
+| `LambdaLayerArns` | CommaDelimitedList | `` | Lambda Layer ARNs to attach |
+| `EnableVPC` | String | `false` | Enable VPC configuration (true/false) |
+| `VPCSubnetIds` | List | `` | VPC subnet IDs (required if EnableVPC=true) |
+| `VPCSecurityGroupIds` | List | `` | VPC security group IDs (required if EnableVPC=true) |
+| `EnableDeadLetterQueue` | String | `false` | Enable DLQ for failed async invocations |
+| `DeadLetterQueueArn` | String | `` | SQS queue or SNS topic ARN for DLQ |
+| `IAMRoleArn` | String | `` | IAM role ARN for Lambda execution (must be created externally) |
 
 ## Outputs
 
-### DynamoDB Table Template Outputs
+| Output | Description |
+|--------|-------------|
+| `FunctionName` | Name of the Lambda function |
+| `FunctionArn` | ARN of the Lambda function |
 
-| Output | Type | Description |
-| ----------- | ------ | ------------- |
-| `TableName` | String | Name of the created DynamoDB table (exported for cross-stack reference) |
-| `TableArn` | String | ARN of the created DynamoDB table (exported for cross-stack reference) |
-| `StreamArn` | String | ARN of the DynamoDB Stream (only when EnableStreams is true) |
+## Deployment Modes
 
-## Usage
-
-### 1. Upload Template to S3
+### Mode 1: Deploy with S3 Code (Default)
 
 ```bash
-aws s3 cp templates/dynamodb-table.yaml s3://your-cfn-bucket/templates/dynamodb-table.yaml
+# Upload code to S3
+aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/function.zip
+
+# Create IAM role
+aws iam create-role --role-name lambda-exec-role \
+  --assume-role-policy-document '{"Version":"2012-10-17",...}'
+
+# Create log group
+aws logs create-log-group --log-group-name /aws/lambda/my-function
+
+# Deploy Lambda with S3 code
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name my-lambda-stack \
+  --parameter-overrides \
+    S3Bucket=my-bucket \
+    S3Key=lambda-code/function.zip \
+    LambdaLogGroup=/aws/lambda/my-function \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-exec-role
 ```
 
-### 2. Reference from Parent Stack
-
-In your parent/root CloudFormation template:
-
-```yaml
-DynamoDBTableNestedStack:
-  Type: AWS::CloudFormation::Stack
-  Properties:
-    TemplateURL: https://s3.amazonaws.com/your-cfn-bucket/templates/dynamodb-table.yaml
-    Parameters:
-      ProjectName: !Ref ProjectName
-      TableBaseName: users-table
-      Environment: !Ref Environment
-      BillingMode: PAY_PER_REQUEST
-      PartitionKeyName: UserID
-      PartitionKeyType: S
-      SortKeyName: CreatedAt
-      SortKeyType: S
-      EnableStreams: "true"
-      EnablePointInTimeRecovery: "true"
-      EnableTTL: "false"
-      GSI1Enabled: "true"
-      GSI1PartitionKeyName: Email
-      GSI1PartitionKeyType: S
-    Tags:
-      - Key: Environment
-        Value: !Ref Environment
-
-Outputs:
-  TableName:
-    Value: !GetAtt DynamoDBTableNestedStack.Outputs.TableName
-  TableArn:
-    Value: !GetAtt DynamoDBTableNestedStack.Outputs.TableArn
-  StreamArn:
-    Value: !GetAtt DynamoDBTableNestedStack.Outputs.StreamArn
-```
-
-### 3. Deploy Using AWS CLI
-
-#### Example 1: Basic On-Demand Table
+### Mode 2: Deploy with Boilerplate Code (Quick Start)
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-dev \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters file://parameters/dynamodb-dev.json
+# Create IAM role
+aws iam create-role --role-name lambda-exec-role \
+  --assume-role-policy-document '{"Version":"2012-10-17",...}'
+
+# Create log group
+aws logs create-log-group --log-group-name /aws/lambda/my-function
+
+# Deploy Lambda with inline boilerplate code
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name my-lambda-stack \
+  --parameter-overrides \
+    LambdaLogGroup=/aws/lambda/my-function \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-exec-role
 ```
 
-#### Example 2: Provisioned Capacity with GSI
+The boilerplate code will be used automatically when `S3Bucket` is empty:
+
+```python
+def lambda_handler(event, context):
+    return {
+        'statusCode': 200,
+        'body': 'Hello World'
+    }
+```
+
+## Lambda Naming Convention
+
+Lambda function names follow this pattern:
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-prod \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters \
-    ParameterKey=ProjectName,ParameterValue=myapp \
-    ParameterKey=TableBaseName,ParameterValue=orders \
-    ParameterKey=Environment,ParameterValue=prod \
-    ParameterKey=BillingMode,ParameterValue=PROVISIONED \
-    ParameterKey=ProvisionedReadCapacity,ParameterValue=100 \
-    ParameterKey=ProvisionedWriteCapacity,ParameterValue=100 \
-    ParameterKey=PartitionKeyName,ParameterValue=OrderID \
-    ParameterKey=PartitionKeyType,ParameterValue=S \
-    ParameterKey=SortKeyName,ParameterValue=OrderDate \
-    ParameterKey=SortKeyType,ParameterValue=S \
-    ParameterKey=GSI1Enabled,ParameterValue=true \
-    ParameterKey=GSI1PartitionKeyName,ParameterValue=CustomerID \
-    ParameterKey=GSI1PartitionKeyType,ParameterValue=S \
-    ParameterKey=GSI1SortKeyName,ParameterValue=OrderDate \
-    ParameterKey=GSI1SortKeyType,ParameterValue=S \
-    ParameterKey=GSI1ReadCapacity,ParameterValue=50 \
-    ParameterKey=GSI1WriteCapacity,ParameterValue=50
+{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}
 ```
 
-#### Example 3: With Streams and Point-in-Time Recovery
+**Example:** `proj-ztc-data-processor-devl-us-east-1`
+
+**Note:** Unlike other resources, Lambda function names do not include AWS Account ID since they are scoped to an account and region.
+
+## Prerequisites
+
+Before deploying, create these external resources:
+
+### 1. IAM Execution Role
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-events \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters \
-    ParameterKey=ProjectName,ParameterValue=myapp \
-    ParameterKey=TableBaseName,ParameterValue=events \
-    ParameterKey=Environment,ParameterValue=prod \
-    ParameterKey=BillingMode,ParameterValue=PAY_PER_REQUEST \
-    ParameterKey=PartitionKeyName,ParameterValue=EventID \
-    ParameterKey=PartitionKeyType,ParameterValue=S \
-    ParameterKey=SortKeyName,ParameterValue=Timestamp \
-    ParameterKey=SortKeyType,ParameterValue=N \
-    ParameterKey=EnableStreams,ParameterValue=true \
-    ParameterKey=StreamViewType,ParameterValue=NEW_AND_OLD_IMAGES \
-    ParameterKey=EnablePointInTimeRecovery,ParameterValue=true
+aws iam create-role \
+  --role-name lambda-execution-role \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Principal": {"Service": "lambda.amazonaws.com"},
+      "Action": "sts:AssumeRole"
+    }]
+  }'
+
+# Attach basic execution policy
+aws iam attach-role-policy \
+  --role-name lambda-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+# Attach VPC execution policy (if using VPC)
+aws iam attach-role-policy \
+  --role-name lambda-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 ```
 
-#### Example 4: With TTL and LSI
+### 2. CloudWatch Log Group
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-sessions \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters \
-    ParameterKey=ProjectName,ParameterValue=myapp \
-    ParameterKey=TableBaseName,ParameterValue=sessions \
-    ParameterKey=Environment,ParameterValue=prod \
-    ParameterKey=BillingMode,ParameterValue=PAY_PER_REQUEST \
-    ParameterKey=PartitionKeyName,ParameterValue=SessionID \
-    ParameterKey=PartitionKeyType,ParameterValue=S \
-    ParameterKey=SortKeyName,ParameterValue=UserID \
-    ParameterKey=SortKeyType,ParameterValue=S \
-    ParameterKey=EnableTTL,ParameterValue=true \
-    ParameterKey=TTLAttributeName,ParameterValue=ExpiresAt \
-    ParameterKey=LSI1Enabled,ParameterValue=true \
-    ParameterKey=LSI1AttributeName,ParameterValue=CreatedAt \
-    ParameterKey=LSI1AttributeType,ParameterValue=N
+aws logs create-log-group \
+  --log-group-name /aws/lambda/my-function
+
+aws logs put-retention-policy \
+  --log-group-name /aws/lambda/my-function \
+  --retention-in-days 7
 ```
 
-#### Example 5: With Custom KMS Encryption
+### 3. Upload Lambda Code (if using S3 mode)
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-secure \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters \
-    ParameterKey=ProjectName,ParameterValue=myapp \
-    ParameterKey=TableBaseName,ParameterValue=sensitive-data \
-    ParameterKey=Environment,ParameterValue=prod \
-    ParameterKey=BillingMode,ParameterValue=PROVISIONED \
-    ParameterKey=ProvisionedReadCapacity,ParameterValue=10 \
-    ParameterKey=ProvisionedWriteCapacity,ParameterValue=10 \
-    ParameterKey=PartitionKeyName,ParameterValue=DataID \
-    ParameterKey=PartitionKeyType,ParameterValue=S \
-    ParameterKey=KmsKey,ParameterValue=arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
+aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
 ```
 
-#### Example 6: With CI Suffix
+## Best Practices
+
+- ✅ Use externally-managed IAM roles for security isolation
+- ✅ Create CloudWatch Log Groups with appropriate retention policies
+- ✅ Use S3 versioning for code deployments
+- ✅ Enable VPC for Lambda functions that access databases
+- ✅ Configure DLQ for async invocations to capture failures
+- ✅ Use Lambda Layers for shared dependencies
+- ✅ Set appropriate memory allocation based on function performance
+- ✅ Monitor Lambda metrics in CloudWatch
+
+## Examples
+
+### Example 1: Python Function with DynamoDB Access
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name myapp-dynamodb-ci \
-  --template-body file://templates/dynamodb-table.yaml \
-  --parameters \
-    ParameterKey=ProjectName,ParameterValue=myapp \
-    ParameterKey=TableBaseName,ParameterValue=test-table \
-    ParameterKey=Environment,ParameterValue=test \
-    ParameterKey=CiSuffix,ParameterValue=$CI_PIPELINE_ID \
-    ParameterKey=BillingMode,ParameterValue=PAY_PER_REQUEST \
-    ParameterKey=PartitionKeyName,ParameterValue=PK \
-    ParameterKey=PartitionKeyType,ParameterValue=S
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name user-processor \
+  --parameter-overrides \
+    ProjectName=myapp \
+    LambdaFunctionBaseName=user-processor \
+    Environment=prod \
+    Runtime=python3.12 \
+    Handler=lambda_function.lambda_handler \
+    MemorySize=512 \
+    S3Bucket=lambda-code-bucket \
+    S3Key=user-processor.zip \
+    DynamoDBTableName=users-table \
+    LambdaLogGroup=/aws/lambda/user-processor \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-role \
+    EnableVPC=true \
+    VPCSubnetIds=subnet-123,subnet-456 \
+    VPCSecurityGroupIds=sg-789
 ```
 
-#### Monitoring Stack Creation
+### Example 2: Node.js Function with Quick Start Boilerplate
 
 ```bash
-# Wait for stack creation to complete
-aws cloudformation wait stack-create-complete --stack-name myapp-dynamodb-dev
-
-# Get stack outputs
-aws cloudformation describe-stacks \
-  --stack-name myapp-dynamodb-dev \
-  --query 'Stacks[0].Outputs' \
-  --output table
-
-# Get table details
-TABLE_NAME=$(aws cloudformation describe-stacks \
-  --stack-name myapp-dynamodb-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`TableName`].OutputValue' \
-  --output text)
-
-aws dynamodb describe-table --table-name $TABLE_NAME
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name hello-world-api \
+  --parameter-overrides \
+    ProjectName=quickstart \
+    LambdaFunctionBaseName=hello-api \
+    Runtime=nodejs24.x \
+    Handler=index.handler \
+    LambdaLogGroup=/aws/lambda/hello-api \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-role
 ```
 
-## Table Naming Convention
+The deployment will use the inline boilerplate code automatically.
 
-The template generates table names using the following pattern:
+## Troubleshooting
 
-**Without CI Suffix:**
+### Lambda Won't Deploy
+- Verify IAM role ARN is correct: `aws iam get-role --role-name your-role`
+- Check CloudWatch Log Group exists: `aws logs describe-log-groups --log-group-name-prefix /aws/lambda/`
+- Validate template: `aws cloudformation validate-template --template-body file://template.yaml`
 
-```bash
-{ProjectName}-{TableBaseName}-{AccountId}-{Environment}-{Region}
-```
+### Function Not Invoking S3 Code
+- Verify S3 bucket and key exist: `aws s3 ls s3://bucket/key`
+- Check S3 object permissions: `aws s3api head-object --bucket bucket --key key`
+- Ensure IAM role has S3 read permissions
 
-Example: `myapp-users-table-123456789012-devl-us-east-1`
-
-**With CI Suffix:**
-
-```bash
-{ProjectName}-{TableBaseName}-{AccountId}-{Environment}-{Region}-{CiSuffix}
-```
-
-Example: `myapp-users-table-123456789012-devl-us-east-1-pipeline-12345`
-
-## Best Practices Implemented
-
-- ✅ KMS encryption enabled by default (AWS-managed key)
-- ✅ Flexible billing modes (on-demand for dev, provisioned for production)
-- ✅ Point-in-time recovery support for disaster recovery
-- ✅ DynamoDB Streams for change data capture
-- ✅ TTL support for automatic data expiration
-- ✅ LSI and GSI support for flexible querying patterns
-- ✅ Smart table naming with project prefix, account ID, environment, and region
-- ✅ Optional CI suffix support for ephemeral test deployments
-- ✅ Data retention policy (table not deleted when stack is removed)
-- ✅ Automatic tagging for resource management
-- ✅ Export values for cross-stack references
+### VPC Connection Issues
+- Verify subnets and security groups exist in same VPC
+- Check security group allows necessary outbound traffic
+- For database access, ensure VPC endpoints or NAT gateway configured
 
 ## License
 

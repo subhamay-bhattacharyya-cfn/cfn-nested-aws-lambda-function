@@ -4,50 +4,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a **CloudFormation template repository** that provides reusable nested stack templates for deploying S3 buckets with security best practices. Templates follow the nested stack pattern and are designed to be referenced by parent CloudFormation stacks.
+This is a **CloudFormation template repository** that provides a reusable nested stack template for deploying AWS Lambda functions with flexible configuration and security best practices. The template follows the nested stack pattern and is designed to be referenced by parent CloudFormation stacks.
 
 **Key characteristics:**
 
-- Nested CloudFormation templates (referenced via `TemplateURL`)
-- Parameterized bucket naming with account ID, environment, and region
-- S3 security defaults: versioning enabled, public access blocked
-- Optional S3 bucket policy enforcement (encryption, secure transport)
+- Nested CloudFormation template for Lambda function deployment (referenced via `TemplateURL`)
+- Dual deployment modes: S3-based code OR inline boilerplate code
+- Support for Python (3.12, 3.13) and Node.js (20.x, 24.x) runtimes
+- Configurable memory, timeout, VPC integration, and concurrency
+- CloudWatch Logs integration with external log group management
+- Dead Letter Queue (DLQ) support for async invocations
+- Lambda Layers support for dependencies
+- External IAM role management for security
 - Automated semantic versioning and releases
 - AWS OIDC authentication for CI/CD deployments
 
 ## Project Structure
 
 ```text
-templates/
-├── s3-bucket.yaml                # Nested template: S3 bucket creation
-└── s3-bucket-policy.yaml         # Nested template: S3 bucket policy
-
-parameters/
-├── dev.json                       # Parameters for development environment
-├── staging.json                   # Parameters for staging environment
-├── prod.json                      # Parameters for production environment
-├── policy-dev.json                # Bucket policy parameters (development)
-├── policy-staging.json            # Bucket policy parameters (staging)
-└── policy-prod.json               # Bucket policy parameters (production)
+cloudformation/
+├── template.yaml                   # Nested template: Lambda function creation
+├── lambda-parameters-dev.json      # Parameters for development environment
+├── lambda-parameters-stag.json     # Parameters for staging environment
+├── lambda-parameters-prod.json     # Parameters for production environment
+├── parameters.json                 # Legacy parameters file
+└── stack-config.json               # Stack configuration
 
 .github/workflows/
-├── ci.yaml                        # Validates, deploys, and cleans up templates
-├── release.yaml                   # Semantic release on push to main
-└── create-branch.yaml             # Auto-create feature branches from issues
+├── ci.yaml                         # Validates, deploys, and cleans up templates
+├── release.yaml                    # Semantic release on push to main
+└── create-branch.yaml              # Auto-create feature branches from issues
 
 scripts/plugins/
-├── release.config.js              # Semantic-release configuration
-└── (other release plugins)        # Custom commit analysis, notes generation
+├── release.config.js               # Semantic-release configuration
+└── (other release plugins)         # Custom commit analysis, notes generation
 
 .claude/
-├── settings.json                  # Claude Code workspace settings
-└── settings.local.json            # Local overrides
+├── settings.json                   # Claude Code workspace settings
+└── settings.local.json             # Local overrides
 
 .devcontainer/
-└── devcontainer.json              # Dev container setup (Node.js 20)
+└── devcontainer.json               # Dev container setup (Node.js 20)
 
-package.json                       # Dependencies: semantic-release, commitizen
-README.md                          # Template documentation and usage examples
+package.json                        # Dependencies: semantic-release, commitizen
+README.md                           # Template documentation and usage examples
+CLAUDE.md                           # This file
 ```
 
 ## Development Commands
@@ -76,73 +77,110 @@ Select `feat`, `fix`, or `chore` type. Only `feat` and `fix` trigger releases.
 
 ### Nested Stack Pattern
 
-This repo provides **nested stack templates** — templates that are referenced from parent/root CloudFormation stacks via `TemplateURL`. The templates are self-contained and export outputs for cross-stack references.
+This repo provides a **nested stack template** — a template that is referenced from parent/root CloudFormation stacks via `TemplateURL`. The template is self-contained and exports outputs for cross-stack references.
 
 - **Parent stack** calls: `AWS::CloudFormation::Stack` with `TemplateURL` pointing to S3
-- **Nested templates** output values via `Outputs` section with `Export`
-- Parent retrieves outputs via `!GetAtt NestedStack.Outputs.OutputKey`
+- **Nested template** outputs values via `Outputs` section with `Export`
+- Parent retrieves outputs via `!GetAtt LambdaStack.Outputs.OutputKey`
 
-### Bucket Naming Convention
+### Function Naming Convention
 
-Bucket names follow a deterministic pattern driven by parameters:
+Function names follow a deterministic pattern driven by parameters:
 
 ```bash
-{ProjectName}-{BucketBaseName}-{AccountId}-{Environment}-{Region}[-{CiSuffix}]
+{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}
 ```
 
-Example: `myproject-cfn-bucket-123456789012-devl-us-east-1`
+Example: `proj-ztc-data-processor-devl-us-east-1`
 
 This ensures:
 
-- Uniqueness across AWS accounts and regions
+- Consistency across deployments
 - Environment isolation
-- Consistent naming for infrastructure automation
+- Predictable naming for infrastructure automation
 
-### Parameter-Driven Configuration
+**Note:** Unlike other AWS resources, Lambda function names do NOT include Account ID (they're scoped to account+region already).
 
-Both templates accept parameters to support:
+### Dual Deployment Modes
 
-- **Standalone mode**: Direct bucket name provided
-- **Integrated mode**: Bucket name constructed from project/environment parameters
+The template supports two ways to provide Lambda function code:
 
-The `s3-bucket-policy.yaml` template checks if `BucketName` is provided; if not, it constructs the name using the same parameters as the bucket template.
+1. **S3 Mode (Default)** — Code stored in S3 bucket
+   - Provide `S3Bucket` and `S3Key` parameters
+   - For production deployments with versioned code
+   - Code lifecycle managed separately from CloudFormation
+
+2. **Inline Mode (Quick Start)** — Boilerplate code in template
+   - Leave `S3Bucket` empty
+   - Uses default "Hello World" Python function
+   - For testing, prototypes, or quick deployments
+   - Code: `def lambda_handler(event, context): return {'statusCode': 200, 'body': 'Hello World'}`
+
+### External Resource Management
+
+The template does NOT create IAM roles or CloudWatch Log Groups. These must be created externally:
+
+- **IAM Role**: Must exist and have appropriate permissions (basic execution, VPC access, service-specific policies)
+- **CloudWatch Log Group**: Must exist and be named according to Lambda logging conventions
+
+This separation provides:
+
+- Better security isolation
+- Lifecycle independence (role/logs can outlive the function)
+- Team separation of concerns
+- Compliance with enterprise patterns
 
 ## Key Files to Understand
 
-### `templates/s3-bucket.yaml`
+### `cloudformation/template.yaml`
 
-**Purpose:** Creates an S3 bucket with security defaults
+**Purpose:** Creates a Lambda function with flexible configuration
 
 **Key inputs:**
 
-- `ProjectName` (required): Project prefix
-- `BucketBaseName` (default: `cfn-bucket`): Base name component
-- `environment`: Environment label (devl, stag, prod)
-- `CiSuffix`: Optional suffix for CI/CD unique deployments
+- `ProjectName` (default: `proj-ztc`): Project prefix
+- `LambdaFunctionBaseName` (default: `lambda-function`): Base function name
+- `Environment`: Environment label (devl, stag, prod)
+- `Runtime`: Lambda runtime (python3.13, python3.12, nodejs24.x, nodejs20.x)
+- `S3Bucket` / `S3Key`: Code location (leave empty for inline boilerplate)
+- `LambdaLogGroup`: External CloudWatch Log Group name
+- `IAMRoleArn`: External IAM role for Lambda execution
 
 **Key outputs:**
 
-- `S3BucketName`: Bucket name (exported for parent stack)
-- `S3BucketArn`: Bucket ARN
+- `FunctionName`: Function name (exported for parent stack)
+- `FunctionArn`: Function ARN (exported for parent stack)
 
 **Features:**
 
-- Versioning enabled by default
-- Public access blocking enabled (all 4 options)
-- Conditional naming: different bucket name with/without CI suffix
+- Conditional code source: S3 OR inline boilerplate
+- Configurable memory (128-10240 MB) and timeout (1-900 seconds)
+- Optional VPC integration for database access
+- Optional DLQ for async invocation failure handling
+- Optional Lambda Layers attachment
+- Reserved concurrent execution limits
+- Environment variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
+- JSON structured logging to CloudWatch
 
-### `templates/s3-bucket-policy.yaml`
+### `cloudformation/lambda-parameters-*.json`
 
-**Purpose:** Applies an optional S3 bucket policy for encryption and transport security
+**Purpose:** Environment-specific parameter overrides
 
-**Key inputs:** Same as bucket template, plus `BucketName` (standalone mode)
+**Structure:**
 
-**Behavior:**
+- `lambda-parameters-dev.json`: Development (256 MB, no VPC, no DLQ)
+- `lambda-parameters-stag.json`: Staging (512 MB, VPC enabled, DLQ enabled)
+- `lambda-parameters-prod.json`: Production (1024 MB, VPC enabled, DLQ enabled)
 
-- If `BucketName` provided (non-empty), use it directly
-- Otherwise, construct name from ProjectName/BucketBaseName/environment/CiSuffix
-- Enforces S3 encryption on PutObject
-- Enforces HTTPS-only transport
+**Usage:**
+
+```bash
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --parameter-overrides file://cloudformation/lambda-parameters-dev.json \
+  S3Bucket=my-bucket \
+  S3Key=lambda-code/function.zip
+```
 
 ### `.github/workflows/ci.yaml`
 
@@ -152,13 +190,13 @@ The `s3-bucket-policy.yaml` template checks if `BucketName` is provided; if not,
 - Pull requests (any branch)
 - Pushes to `feature/**` and `bug/**` branches
 
-**Path filter:** Only runs if changes to `templates/`, `parameters/`, or `.github/workflows/ci.yaml`
+**Path filter:** Only runs if changes to `cloudformation/`, `.github/workflows/ci.yaml`
 
 **Phases:**
 
-1. **Validation:** `aws cloudformation validate-template` on both templates
-2. **Deployment:** Creates CloudFormation stacks in CI environment
-3. **Cleanup:** Destroys stacks (policy stack first, then bucket) for ephemeral testing
+1. **Validation:** `aws cloudformation validate-template` on template
+2. **Deployment:** Creates Lambda stack in CI environment
+3. **Cleanup:** Destroys stack for ephemeral testing
 
 **Environment setup:**
 
@@ -187,32 +225,55 @@ The `s3-bucket-policy.yaml` template checks if `BucketName` is provided; if not,
 
 ## Testing & Validation
 
-**Manual template validation:**
+### Manual template validation
 
 ```bash
-aws cloudformation validate-template --template-body file://templates/s3-bucket.yaml
-aws cloudformation validate-template --template-body file://templates/s3-bucket-policy.yaml
+aws cloudformation validate-template --template-body file://cloudformation/template.yaml
 ```
 
-**Manual stack deployment:**
+### Manual stack deployment (with S3 code)
 
 ```bash
-# Deploy bucket to dev environment
-aws cloudformation deploy \
-  --template-file templates/s3-bucket.yaml \
-  --stack-name my-stack-dev \
-  --parameter-overrides file://parameters/dev.json \
-  --region us-east-1
+# Create prerequisites first
+aws iam create-role --role-name lambda-exec-role \
+  --assume-role-policy-document '{"Version":"2012-10-17",...}'
 
-# Deploy policy after bucket is created
+aws logs create-log-group --log-group-name /aws/lambda/my-function
+
+# Upload code
+aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
+
+# Deploy Lambda function
 aws cloudformation deploy \
-  --template-file templates/s3-bucket-policy.yaml \
-  --stack-name my-policy-dev \
-  --parameter-overrides file://parameters/policy-dev.json \
-  --region us-east-1
+  --template-file cloudformation/template.yaml \
+  --stack-name my-lambda-dev \
+  --parameter-overrides \
+    file://cloudformation/lambda-parameters-dev.json \
+    S3Bucket=my-bucket \
+    S3Key=lambda-code/lambda-function.zip \
+    LambdaLogGroup=/aws/lambda/my-function \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-exec-role
 ```
 
-The CI workflow (ci.yaml) runs this full cycle automatically on PR, then cleans up.
+### Quick deployment (with inline boilerplate)
+
+```bash
+# Create prerequisites
+aws iam create-role --role-name lambda-exec-role \
+  --assume-role-policy-document '{"Version":"2012-10-17",...}'
+
+aws logs create-log-group --log-group-name /aws/lambda/my-function
+
+# Deploy with inline boilerplate code
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name my-lambda-dev \
+  --parameter-overrides \
+    LambdaLogGroup=/aws/lambda/my-function \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-exec-role
+```
+
+The CI workflow (ci.yaml) runs the full cycle automatically on PR, then cleans up.
 
 ## AWS Credentials & Environment Variables
 
@@ -244,12 +305,42 @@ Only commits to `main` trigger releases. Feature branches use this format but re
 
 ## When Modifying Templates
 
-1. **Edit the template YAML** in `templates/`
-2. **Update parameter files** in `parameters/` if new parameters added
+1. **Edit the template YAML** in `cloudformation/template.yaml`
+2. **Update parameter files** in `cloudformation/lambda-parameters-*.json` if new parameters added
 3. **Test locally** with `aws cloudformation validate-template`
-4. **Create a PR** with conventional commit message (e.g., `feat: add encryption key parameter`)
+4. **Create a PR** with conventional commit message (e.g., `feat: add memory size parameter`)
 5. **CI validates and deploys** to dev environment automatically
 6. **Merge to main** → release workflow creates version tag and GitHub release
+
+## Guidelines for Working with This Template
+
+### When to Update `template.yaml`
+
+- ✅ Adding new Lambda configuration parameters
+- ✅ Changing function properties (memory, timeout, layers, etc.)
+- ✅ Updating runtimes or handler configuration
+- ✅ Modifying VPC or logging configuration
+- ✅ Fixing bugs or improving conditions
+
+### When to Update Parameter Files
+
+- ✅ Changing environment-specific values (memory, timeout)
+- ✅ Adding environment-specific VPC or DLQ configuration
+- ✅ Updating S3 bucket or code paths
+- ✅ Modifying environment variables per environment
+
+### When to Update README.md
+
+- ✅ Adding documentation for new parameters
+- ✅ Adding new deployment examples
+- ✅ Clarifying usage or best practices
+- ✅ Updating architecture diagrams or explanations
+
+### When NOT to Create New Template Files
+
+- ❌ Don't create separate lambda templates
+- ❌ Don't create environment-specific templates
+- Use parameter files and conditions instead
 
 ## Dev Container
 
@@ -262,5 +353,13 @@ Use via VS Code: `code --remote-container-url <repo-url>`
 
 ## Current Branch
 
-Main branch is the release branch. Feature work branches from here and merges back via PR. Branch naming follows: `{type}/CFN-{issue-number}-{slug}` (e.g., `feature/CFN-42-add-encryption`).
+Main branch is the release branch. Feature work branches from here and merges back via PR. Branch naming follows: `{type}/CFN-{issue-number}-{slug}` (e.g., `feature/CFN-42-add-memory-parameter`).
 
+## Key Decisions
+
+1. **Single Template File**: All Lambda configuration in one `template.yaml` for easier maintenance
+2. **External Resources**: IAM roles and log groups created externally for better security isolation
+3. **Dual Deployment Modes**: Support both S3-based and inline boilerplate code for flexibility
+4. **Python/Node.js Only**: Limited runtimes to most commonly-used (Python 3.12/3.13, Node.js 20.x/24.x)
+5. **Parameterized Configuration**: Environment-specific values in parameter files, not hardcoded
+6. **Semantic Versioning**: Automated releases on main branch based on conventional commits

@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Nested CloudFormation template to create a Lambda function with flexible configuration for runtime, environment variables, layers, and VPC settings'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'proj-ztc'
+    Description: Project name to use as a function prefix
+    MinLength: 1
+    MaxLength: 20
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: Project name must be lowercase letters, numbers, and hyphens only
+
+  LambdaFunctionBaseName:
+    Type: String
+    Default: 'lambda-function'
+    Description: Base name for the Lambda function (environment and region will be appended)
+
+  Environment:
+    Type: String
+    Default: 'devl'
+    Description: Deployment environment for the Lambda function
+    AllowedValues: [devl, stag, prod]
+
+  Runtime:
+    Type: String
+    Default: 'python3.12'
+    Description: Lambda function runtime
+    AllowedValues:
+      - python3.13
+      - python3.12
+      - nodejs24.x
+
+  Handler:
+    Type: String
+    Default: 'index.handler'
+    Description: Lambda function handler (e.g., index.handler for Node.js, lambda_function.lambda_handler for Python)
+    MinLength: 1
+
+  S3Bucket:
+    Type: String
+    Default: ''
+    Description: S3 bucket containing the Lambda function code (leave empty to use inline boilerplate code)
+
+  S3Key:
+    Type: String
+    Default: ''
+    Description: S3 key for the Lambda function code (e.g., lambda-code.zip) (leave empty to use inline boilerplate code)
+
+  S3ObjectVersion:
+    Type: String
+    Default: ''
+    Description: Optional S3 object version ID for the Lambda function code
+
+  InlineCode:
+    Type: String
+    Default: |
+      def lambda_handler(event, context):
+          return {
+              'statusCode': 200,
+              'body': 'Hello World'
+          }
+    Description: Python boilerplate code for Lambda function (used if S3Bucket is empty)
+
+  MemorySize:
+    Type: Number
+    Default: 128
+    MinValue: 128
+    MaxValue: 10240
+    Description: Memory allocated to the Lambda function (128 MB to 10,240 MB)
+
+  Timeout:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 900
+    Description: Function timeout in seconds (1 to 900)
+
+  ReservedConcurrentExecutions:
+    Type: Number
+    Default: -1
+    Description: Reserved concurrent executions (-1 means no reservation, or specify a positive number)
+
+  EnvironmentNameValue:
+    Type: String
+    Default: development
+    Description: Value for ENVIRONMENT variable
+
+  LogLevelValue:
+    Type: String
+    Default: INFO
+    AllowedValues: [DEBUG, INFO, WARN, ERROR]
+    Description: Value for LOG_LEVEL variable
+
+  DynamoDBTableName:
+    Type: String
+    Default: ''
+    Description: Name of DynamoDB table to reference in environment variables
+
+  LambdaLogGroup:
+    Type: String
+    Description: CloudWatch Log Group name for Lambda function (must be created externally)
+    Default: ''
+
+  LambdaLayerArns:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Comma-delimited list of Lambda Layer ARNs to attach to the function
+
+  EnableVPC:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable VPC configuration for Lambda function
+
+  VPCSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: List of VPC subnet IDs (required if EnableVPC is true)
+
+  VPCSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: List of VPC security group IDs (required if EnableVPC is true)
+
+  EphemeralStorage:
+    Type: Number
+    Default: 512
+    MinValue: 512
+    MaxValue: 10240
+    Description: Ephemeral storage available at /tmp in MB (512 MB to 10,240 MB)
+
+  EnableDeadLetterQueue:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable Dead Letter Queue for failed async invocations
+
+  DeadLetterQueueArn:
+    Type: String
+    Default: ''
+    Description: ARN of SQS queue or SNS topic for failed async invocations (required if EnableDeadLetterQueue is true)
+
+  IAMRoleArn:
+    Type: String
+    Description: ARN of IAM role for Lambda function execution (must be created externally)
+
+Conditions:
+  HasS3Bucket: !Not [!Equals [!Ref S3Bucket, ""]]
+  HasS3Key: !Not [!Equals [!Ref S3Key, ""]]
+  HasS3ObjectVersion: !Not [!Equals [!Ref S3ObjectVersion, ""]]
+  HasLayers: !Not [!Equals [!Select [0, !Ref LambdaLayerArns], ""]]
+  EnableVPCConfig: !Equals [!Ref EnableVPC, 'true']
+  EnableDLQConfig: !Equals [!Ref EnableDeadLetterQueue, 'true']
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrentExecutions, -1]]
+  HasDynamoDBTable: !Not [!Equals [!Ref DynamoDBTableName, ""]]
+  ConfigureLogging: !Not [!Equals [!Ref LambdaLogGroup, ""]]
+
+Resources:
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}'
+      Runtime: !Ref Runtime
+      Handler: !Ref Handler
+      Role: !Ref IAMRoleArn
+      Code: !If
+        - HasS3Bucket
+        - S3Bucket: !Ref S3Bucket
+          S3Key: !If [HasS3Key, !Ref S3Key, !Ref 'AWS::NoValue']
+          S3ObjectVersion: !If [HasS3ObjectVersion, !Ref S3ObjectVersion, !Ref 'AWS::NoValue']
+        - ZipFile: !Ref InlineCode
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref Timeout
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrentExecutions, !Ref 'AWS::NoValue']
+      EphemeralStorage:
+        Size: !Ref EphemeralStorage
+      Layers: !If [HasLayers, !Ref LambdaLayerArns, !Ref 'AWS::NoValue']
+      VpcConfig: !If
+        - EnableVPCConfig
+        - SubnetIds: !Ref VPCSubnetIds
+          SecurityGroupIds: !Ref VPCSecurityGroupIds
+        - !Ref 'AWS::NoValue'
+      DeadLetterConfig: !If
+        - EnableDLQConfig
+        - TargetArn: !Ref DeadLetterQueueArn
+        - !Ref 'AWS::NoValue'
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref EnvironmentNameValue
+          LOG_LEVEL: !Ref LogLevelValue
+          DYNAMODB_TABLE: !If [HasDynamoDBTable, !Ref DynamoDBTableName, !Ref 'AWS::NoValue']
+      LoggingConfig: !If
+        - ConfigureLogging
+        - LogFormat: JSON
+          LogGroup: !Ref LambdaLogGroup
+        - !Ref 'AWS::NoValue'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  FunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref LambdaFunction
+
+  FunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt LambdaFunction.Arn

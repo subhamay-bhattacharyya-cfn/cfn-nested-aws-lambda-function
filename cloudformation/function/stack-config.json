@@ -1,5 +1,0 @@
-{
-  "stackName": "cfn-nested-aws-lambda-function-stack",
-  "templateFile": "cloudformation/function/template.yaml",
-  "parameterFile": "cloudformation/function/parameters.json"
-}

@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v7
       - id: config
         run: |
-          CONFIG=$(cat cloudformation/function/stack-config.json)
+          CONFIG=$(cat cloudformation/stack-config.json)
           STACK_NAME=$(echo "$CONFIG" | jq -r '.stackName')
           TEMPLATE_FILE=$(echo "$CONFIG" | jq -r '.templateFile')
           PARAMETER_FILE=$(echo "$CONFIG" | jq -r '.parameterFile')
