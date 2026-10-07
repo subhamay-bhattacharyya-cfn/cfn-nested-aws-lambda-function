@@ -194,9 +194,19 @@ Lambda function names follow this pattern:
 
 ## Prerequisites
 
-Before deploying, create these external resources:
+Prerequisites depend on whether you're using CI/CD deployments or production deployments:
 
-### 1. IAM Execution Role
+### For CI/CD Deployments (with CiSuffix)
+
+✅ **No external resources needed!**
+- IAM role is auto-created with basic Lambda permissions
+- CloudWatch Log Group can be auto-created or provided externally
+
+### For Production Deployments (without CiSuffix)
+
+Create these external resources:
+
+#### 1. IAM Execution Role
 
 ```bash
 aws iam create-role \
@@ -221,7 +231,7 @@ aws iam attach-role-policy \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 ```
 
-### 2. CloudWatch Log Group
+#### 2. CloudWatch Log Group
 
 ```bash
 aws logs create-log-group \
@@ -287,22 +297,52 @@ aws cloudformation deploy \
     ReservedConcurrentExecutions=50
 ```
 
-### Example 2: Node.js Function with Quick Start Boilerplate
+### Example 2: CI/CD Deployment with Auto-Created Role
 
 ```bash
+# No role creation needed - CiSuffix triggers auto-creation
+# Note: IAMRoleArn parameter is ignored when CiSuffix is provided
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name lambda-ci-test \
+  --parameter-overrides \
+    ProjectName=myapp \
+    LambdaFunctionBaseName=processor \
+    Environment=devl \
+    CiSuffix=ci-build-123 \
+    Runtime=python3.12 \
+    Handler=lambda_function.lambda_handler \
+    MemorySize=256
+```
+
+The template will:
+- Auto-create an IAM role with basic Lambda permissions
+- Use inline boilerplate code (since S3Bucket is empty)
+- Function name: `myapp-processor-devl-us-east-1-ci-build-123`
+- Role is deleted when stack is deleted (ephemeral)
+- `IAMRoleArn` parameter is ignored (auto-created role is used instead)
+
+### Example 3: Production Deployment with External IAM Role
+
+```bash
+# Must override IAMRoleArn with your actual role ARN (no CiSuffix)
 aws cloudformation deploy \
   --template-file cloudformation/template.yaml \
   --stack-name hello-world-api \
   --parameter-overrides \
     ProjectName=quickstart \
     LambdaFunctionBaseName=hello-api \
+    Environment=prod \
     Runtime=nodejs24.x \
     Handler=index.handler \
-    LambdaLogGroup=/aws/lambda/hello-api \
-    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-role
+    LambdaLogGroup=/aws/lambda/hello-api-prod-us-east-1 \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-execution-role
 ```
 
-The deployment will use the inline boilerplate code automatically.
+**Important:** 
+- When `CiSuffix` is NOT provided, `IAMRoleArn` is required and must point to your actual IAM role
+- The default value (`arn:aws:iam::123456789012:role/lambda-execution-role`) is a placeholder and must be overridden
+- Deployment will use the external IAM role and inline boilerplate code
 
 ## Troubleshooting
 

@@ -133,19 +133,32 @@ The template uses CloudFormation's `CommaDelimitedList` type for parameters that
 3. Conditions check if these parameters are non-empty before using them
 4. Only applied to the function when their associated feature is enabled (e.g., VPC config only applies if EnableVPC=true and both subnet/security group IDs are provided)
 
-### External Resource Management
+### IAM Role Management
 
-The template does NOT create IAM roles or CloudWatch Log Groups. These must be created externally:
+The template uses a **hybrid approach** for IAM role management:
 
-- **IAM Role**: Must exist and have appropriate permissions (basic execution, VPC access, service-specific policies)
-- **CloudWatch Log Group**: Must exist and be named according to Lambda logging conventions
+**CI/CD Deployments (with CiSuffix):**
+- Lambda execution role is **automatically created** by the template
+- Includes basic Lambda execution permissions (`AWSLambdaBasicExecutionRole`)
+- Role is ephemeral: deleted when stack is deleted
+- No prerequisites needed for role creation
+
+**Production Deployments (without CiSuffix):**
+- Lambda execution role must be **created externally** and provided via `IAMRoleArn` parameter
+- Better security isolation and compliance
+- Lifecycle independence (role can outlive the function)
+- Team separation of concerns (platform team creates roles, application team creates functions)
+
+**CloudWatch Log Groups:**
+- Can be provided externally via `LambdaLogGroup` parameter
+- Optional: leave empty if not using CloudWatch logging
 
 This separation provides:
 
-- Better security isolation
-- Lifecycle independence (role/logs can outlive the function)
-- Team separation of concerns
-- Compliance with enterprise patterns
+- **Security**: Production roles are externally managed and vetted
+- **Flexibility**: CI/CD deployments don't need pre-created roles
+- **Compliance**: Enterprise patterns with role isolation and lifecycle management
+- **Ephemeral Testing**: CI suffix deployments are fully self-contained
 
 ## Key Files to Understand
 
@@ -158,11 +171,11 @@ This separation provides:
 - `ProjectName` (default: `proj-ztc`): Project prefix
 - `LambdaFunctionBaseName` (default: `lambda-function`): Base function name
 - `Environment`: Environment label (devl, stag, prod)
-- `CiSuffix` (optional): Suffix for CI/CD deployments (appended to function name)
+- `CiSuffix` (optional): Suffix for CI/CD deployments (appended to function name; ignored if auto-creating role)
 - `Runtime`: Lambda runtime (python3.13, python3.12, nodejs24.x, nodejs20.x)
 - `S3Bucket` / `S3Key`: Code location (leave empty for inline boilerplate)
-- `LambdaLogGroup`: External CloudWatch Log Group name
-- `IAMRoleArn`: External IAM role for Lambda execution
+- `LambdaLogGroup`: External CloudWatch Log Group name (optional)
+- `IAMRoleArn` (default: placeholder): External IAM role ARN for Lambda execution (required if no CiSuffix; must be overridden with actual role ARN)
 
 **Key outputs:**
 
@@ -376,10 +389,11 @@ Main branch is the release branch. Feature work branches from here and merges ba
 ## Key Decisions
 
 1. **Single Template File**: All Lambda configuration in one `template.yaml` for easier maintenance
-2. **External Resources**: IAM roles and log groups created externally for better security isolation
+2. **Hybrid IAM Role Management**: Auto-create roles for CI/CD (with CiSuffix), externally-manage for production (without CiSuffix)
 3. **Dual Deployment Modes**: Support both S3-based and inline boilerplate code for flexibility
 4. **Python/Node.js Only**: Limited runtimes to most commonly-used (Python 3.12/3.13, Node.js 20.x/24.x)
 5. **Parameterized Configuration**: Environment-specific values in parameter files, not hardcoded
 6. **CommaDelimitedList Parameters**: Use CloudFormation's CommaDelimitedList type for multi-value parameters (VPC subnets, security groups, Lambda Layer ARNs)
 7. **Conditional VPC Configuration**: VPC only configured when EnableVPC=true AND both subnet and security group IDs are non-empty
-8. **Semantic Versioning**: Automated releases on main branch based on conventional commits
+8. **CiSuffix for Ephemeral Deployments**: Optional suffix for CI/CD testing creates unique function names without colliding with permanent deployments
+9. **Semantic Versioning**: Automated releases on main branch based on conventional commits

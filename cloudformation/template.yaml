@@ -144,7 +144,10 @@ Parameters:
 
   IAMRoleArn:
     Type: String
-    Description: ARN of IAM role for Lambda function execution (must be created externally)
+    Default: 'arn:aws:iam::123456789012:role/lambda-execution-role'
+    AllowedPattern: "^arn:(aws[a-zA-Z-]*)?:iam::\\d{12}:role/?[a-zA-Z_0-9+=,.@\\-_/]+$"
+    ConstraintDescription: Must be a valid IAM role ARN (e.g., arn:aws:iam::123456789012:role/lambda-execution-role)
+    Description: ARN of IAM role for Lambda function execution (required if CiSuffix is empty; auto-created if CiSuffix is provided; ignored if CiSuffix is provided)
 
   CiSuffix:
     Type: String
@@ -172,6 +175,29 @@ Conditions:
   ConfigureLogging: !Not [!Equals [!Ref LambdaLogGroup, ""]]
 
 Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: HasCiSuffix
+    Metadata:
+      aws:cloudformation:Context:
+        why: Auto-creates a Lambda execution role with basic permissions for CI/CD deployments (ephemeral, deleted with stack)
+    Properties:
+      RoleName: !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-role-${CiSuffix}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
   LambdaFunction:
     Type: AWS::Lambda::Function
     DeletionPolicy: Delete
@@ -186,7 +212,10 @@ Resources:
         - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}'
       Runtime: !Ref Runtime
       Handler: !Ref Handler
-      Role: !Ref IAMRoleArn
+      Role: !If
+        - HasCiSuffix
+        - !GetAtt LambdaExecutionRole.Arn
+        - !Ref IAMRoleArn
       Code: !If
         - HasS3Bucket
         - S3Bucket: !Ref S3Bucket
