@@ -1,42 +1,12 @@
-[
-  {
-    "ParameterKey": "ProjectName",
-    "ParameterValue": "proj-ztc"
-  },
-  {
-    "ParameterKey": "LambdaFunctionBaseName",
-    "ParameterValue": "ci-test-function"
-  },
-  {
-    "ParameterKey": "Environment",
-    "ParameterValue": "devl"
-  },
-  {
-    "ParameterKey": "Runtime",
-    "ParameterValue": "python3.12"
-  },
-  {
-    "ParameterKey": "Handler",
-    "ParameterValue": "index.handler"
-  },
-  {
-    "ParameterKey": "MemorySize",
-    "ParameterValue": "256"
-  },
-  {
-    "ParameterKey": "Timeout",
-    "ParameterValue": "60"
-  },
-  {
-    "ParameterKey": "IAMRoleArn",
-    "ParameterValue": "arn:aws:iam::123456789012:role/lambda-execution-role"
-  },
-  {
-    "ParameterKey": "LambdaLogGroup",
-    "ParameterValue": "/aws/lambda/proj-ztc-ci-test-function-devl-us-east-1"
-  },
-  {
-    "ParameterKey": "CiSuffix",
-    "ParameterValue": ""
-  }
-]
+{
+  "ProjectName": "cfn-nested",
+  "LambdaFunctionBaseName": "lambda-function",
+  "Environment": "devl",
+  "Runtime": "python3.12",
+  "Handler": "index.handler",
+  "MemorySize": "256",
+  "Timeout": "60",
+  "IAMRoleArn": "arn:aws:iam::123456789012:role/lambda-execution-role",
+  "LambdaLogGroup": "/aws/lambda/cfn-nested-lambda-function-devl-us-east-1",
+  "CiSuffix": ""
+}

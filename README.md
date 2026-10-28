@@ -1,4 +1,4 @@
-# CloudFormation Lambda Function Template Repository
+# CloudFormation Nested Stack Template : Lambda Function
 
 <!-- Row 1: Status - Most Important -->
 [![Release](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/actions/workflows/release.yaml/badge.svg)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)&nbsp;[![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/issues)&nbsp;[![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function)](https://github.com/subhamay-bhattacharyya-cfn/cfn-nested-aws-lambda-function/commits)

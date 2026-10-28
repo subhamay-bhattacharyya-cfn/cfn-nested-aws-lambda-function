@@ -5,7 +5,7 @@ Description: 'Nested CloudFormation template to create a Lambda function with fl
 Parameters:
   ProjectName:
     Type: String
-    Default: 'proj-ztc'
+    Default: 'cfn-nested'
     Description: Project name to use as a function prefix
     MinLength: 1
     MaxLength: 20
@@ -21,7 +21,7 @@ Parameters:
     Type: String
     Default: 'devl'
     Description: Deployment environment for the Lambda function
-    AllowedValues: [devl, stag, prod]
+    AllowedValues: [devl, test, prod]
 
   Runtime:
     Type: String
