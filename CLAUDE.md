@@ -146,7 +146,7 @@ The template can subscribe the function to a Kinesis Data Stream. Two parameters
 
 **Caveats:**
 
-- The auto-created CI role (`CiSuffix` set) only has `AWSLambdaBasicExecutionRole`. Production roles need `AWSLambdaKinesisExecutionRole` added externally.
+- The auto-created CI role (`CiSuffix` set) gets `AWSLambdaBasicExecutionRole`, plus `AWSLambdaKinesisExecutionRole` when a Kinesis event source is configured (`HasKinesisEventSource`). Production roles need `AWSLambdaKinesisExecutionRole` added externally.
 - The created stream uses `DeletionPolicy: Delete`, so deleting the stack deletes its data.
 
 **How it works:**

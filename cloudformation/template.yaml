@@ -214,6 +214,9 @@ Conditions:
   UseExistingKinesisStream: !And
     - !Not [!Condition CreateKinesisStreamConfig]
     - !Not [!Equals [!Ref KinesisStreamArn, 'arn:aws:kinesis:us-east-1:123456789012:stream/placeholder']]
+  HasKinesisEventSource: !Or
+    - !Condition CreateKinesisStreamConfig
+    - !Condition UseExistingKinesisStream
 
 Resources:
   LambdaExecutionRole:
@@ -231,8 +234,11 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      ManagedPolicyArns: !If
+        - HasKinesisEventSource
+        - - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole
+        - - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
         - Key: Environment
           Value: !Ref Environment
