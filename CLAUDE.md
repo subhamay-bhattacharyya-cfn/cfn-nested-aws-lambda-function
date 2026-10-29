@@ -15,6 +15,7 @@ This is a **CloudFormation template repository** that provides a reusable nested
 - CloudWatch Logs integration with external log group management
 - Dead Letter Queue (DLQ) support for async invocations
 - Lambda Layers support for dependencies
+- Optional Kinesis Data Stream event source (create a stream or use an existing ARN)
 - External IAM role management for security
 - Automated semantic versioning and releases
 - AWS OIDC authentication for CI/CD deployments
@@ -127,6 +128,27 @@ The template uses CloudFormation's `CommaDelimitedList` type for parameters that
 - `VPCSecurityGroupIds` — Accepts comma-delimited security group IDs (e.g., `'sg-abc,sg-def'`)
 - `LambdaLayerArns` — Accepts comma-delimited Lambda Layer ARNs
 
+### Kinesis Event Source
+
+The template can subscribe the function to a Kinesis Data Stream. Two parameters control it:
+
+- `CreateKinesisStream` (`'true'`/`'false'`): creates an `AWS::Kinesis::Stream` in this stack. Takes precedence over `KinesisStreamArn`.
+- `KinesisStreamArn`: ARN of an existing stream, used when `CreateKinesisStream` is `'false'`.
+
+**Resources and conditions:**
+
+- `KinesisStream` exists only under `CreateKinesisStreamConfig`. Its name follows the function naming pattern with a `-stream` suffix.
+- `KinesisEventSourceMapping` (existing stream) is conditional on `UseExistingKinesisStream`, which means not creating the stream AND `KinesisStreamArn` being non-empty.
+- `CreatedKinesisEventSourceMapping` (created stream) is conditional on `CreateKinesisStreamConfig`.
+- The two mappings are separate resources on purpose. Putting `!Ref KinesisStreamArn` inside an `!If` makes `cfn-lint` flag W1030, because the linter resolves the empty default to `''`. Keep them separate.
+
+**Outputs:** `KinesisStreamArn` is returned only when the stream is created.
+
+**Caveats:**
+
+- The auto-created CI role (`CiSuffix` set) only has `AWSLambdaBasicExecutionRole`. Production roles need `AWSLambdaKinesisExecutionRole` added externally.
+- The created stream uses `DeletionPolicy: Delete`, so deleting the stack deletes its data.
+
 **How it works:**
 1. Parameters are passed as quoted comma-delimited strings in CLI or JSON files
 2. CloudFormation automatically converts them to arrays/lists
@@ -181,6 +203,7 @@ This separation provides:
 
 - `FunctionName`: Function name (exported for parent stack)
 - `FunctionArn`: Function ARN (exported for parent stack)
+- `KinesisStreamArn`: ARN of the Kinesis stream created by this stack (only when `CreateKinesisStream=true`)
 
 **Features:**
 
@@ -190,6 +213,7 @@ This separation provides:
 - Optional DLQ for async invocation failure handling
 - Optional Lambda Layers attachment
 - Reserved concurrent execution limits
+- Optional Kinesis event source mapping (see Kinesis Event Source above)
 - Environment variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
 - JSON structured logging to CloudWatch
 
@@ -397,3 +421,4 @@ Main branch is the release branch. Feature work branches from here and merges ba
 7. **Conditional VPC Configuration**: VPC only configured when EnableVPC=true AND both subnet and security group IDs are non-empty
 8. **CiSuffix for Ephemeral Deployments**: Optional suffix for CI/CD testing creates unique function names without colliding with permanent deployments
 9. **Semantic Versioning**: Automated releases on main branch based on conventional commits
+10. **Separate Kinesis Event Source Mappings**: The existing-stream and created-stream mappings are separate resources, not one `!If`, so `cfn-lint` does not flag the `KinesisStreamArn` reference (W1030)

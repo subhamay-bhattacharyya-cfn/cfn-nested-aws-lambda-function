@@ -142,6 +142,43 @@ Parameters:
     Default: ''
     Description: ARN of SQS queue or SNS topic for failed async invocations (required if EnableDeadLetterQueue is true)
 
+  CreateKinesisStream:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Create a Kinesis Data Stream in this stack to use as the event source (uses KinesisStreamArn if false)
+
+  KinesisStreamArn:
+    Type: String
+    Default: 'arn:aws:kinesis:us-east-1:123456789012:stream/placeholder'
+    Description: ARN of an existing Kinesis stream to use as an event source (ignored if CreateKinesisStream is true; leave at the placeholder default to skip the event source mapping)
+
+  KinesisShardCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    Description: Number of shards for the Kinesis Data Stream created by this stack
+
+  KinesisRetentionPeriodHours:
+    Type: Number
+    Default: 24
+    MinValue: 24
+    MaxValue: 8760
+    Description: Data retention period in hours for the Kinesis Data Stream created by this stack (24 to 8,760)
+
+  KinesisStartingPosition:
+    Type: String
+    Default: 'LATEST'
+    AllowedValues: [TRIM_HORIZON, LATEST]
+    Description: Starting position for reading from the Kinesis stream
+
+  KinesisBatchSize:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
+    Description: Maximum number of records to read per Kinesis batch (1 to 10,000)
+
   IAMRoleArn:
     Type: String
     Default: 'arn:aws:iam::123456789012:role/lambda-execution-role'
@@ -173,6 +210,10 @@ Conditions:
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrentExecutions, -1]]
   HasDynamoDBTable: !Not [!Equals [!Ref DynamoDBTableName, ""]]
   ConfigureLogging: !Not [!Equals [!Ref LambdaLogGroup, ""]]
+  CreateKinesisStreamConfig: !Equals [!Ref CreateKinesisStream, 'true']
+  UseExistingKinesisStream: !And
+    - !Not [!Condition CreateKinesisStreamConfig]
+    - !Not [!Equals [!Ref KinesisStreamArn, 'arn:aws:kinesis:us-east-1:123456789012:stream/placeholder']]
 
 Resources:
   LambdaExecutionRole:
@@ -253,6 +294,61 @@ Resources:
         - Key: ManagedBy
           Value: CloudFormation
 
+  KinesisStream:
+    Type: AWS::Kinesis::Stream
+    Condition: CreateKinesisStreamConfig
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      aws:cloudformation:Context:
+        why: Creates a Kinesis Data Stream as the event source for the Lambda function when no existing stream ARN is provided
+    Properties:
+      Name: !If
+        - HasCiSuffix
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-${CiSuffix}-stream'
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-stream'
+      ShardCount: !Ref KinesisShardCount
+      RetentionPeriodHours: !Ref KinesisRetentionPeriodHours
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  KinesisEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: UseExistingKinesisStream
+    Properties:
+      EventSourceArn: !Ref KinesisStreamArn
+      FunctionName: !GetAtt LambdaFunction.Arn
+      StartingPosition: !Ref KinesisStartingPosition
+      BatchSize: !Ref KinesisBatchSize
+      MaximumBatchingWindowInSeconds: 5
+      ParallelizationFactor: 1
+      BisectBatchOnFunctionError: true
+      MaximumRetryAttempts: 3
+      MaximumRecordAgeInSeconds: 3600
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      Enabled: true
+
+  CreatedKinesisEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: CreateKinesisStreamConfig
+    Properties:
+      EventSourceArn: !GetAtt KinesisStream.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
+      StartingPosition: !Ref KinesisStartingPosition
+      BatchSize: !Ref KinesisBatchSize
+      MaximumBatchingWindowInSeconds: 5
+      ParallelizationFactor: 1
+      BisectBatchOnFunctionError: true
+      MaximumRetryAttempts: 3
+      MaximumRecordAgeInSeconds: 3600
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      Enabled: true
+
 Outputs:
   FunctionName:
     Description: Name of the Lambda function
@@ -261,3 +357,8 @@ Outputs:
   FunctionArn:
     Description: ARN of the Lambda function
     Value: !GetAtt LambdaFunction.Arn
+
+  KinesisStreamArn:
+    Condition: CreateKinesisStreamConfig
+    Description: ARN of the Kinesis Data Stream created by this stack
+    Value: !GetAtt KinesisStream.Arn

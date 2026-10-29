@@ -39,6 +39,7 @@ The template is stored in this repository and should be uploaded to an S3 bucket
   - Dead Letter Queue (DLQ) support for async invocations
   - Lambda Layers attachment
   - Reserved concurrent execution limits
+  - Optional Kinesis Data Stream event source (create a stream or use an existing one)
   - Environment variable configuration
   - External IAM role and CloudWatch Log Group management
 
@@ -60,6 +61,7 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 - ✅ **Dead Letter Queue** — Support for async invocation failure handling
 - ✅ **Lambda Layers** — Attach multiple layers for code sharing and dependencies
 - ✅ **Reserved Concurrency** — Control function scaling and cost
+- ✅ **Kinesis Event Source** — Optionally create a Kinesis Data Stream or subscribe the function to an existing stream
 - ✅ **Environment Variables** — Pre-configured variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
 - ✅ **External Resource Management** — IAM role and log group created externally
 - ✅ **Deterministic Naming** — Project prefix, function name, environment, region
@@ -116,12 +118,30 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 | `DeadLetterQueueArn` | String | `` | SQS queue or SNS topic ARN for DLQ |
 | `IAMRoleArn` | String | (required) | IAM role ARN for Lambda execution (must be created externally) |
 
+### Kinesis Event Source
+
+The Kinesis event source mapping is created only when a stream is available, either created by this stack or provided by ARN. Leave both `CreateKinesisStream` and `KinesisStreamArn` at their defaults to skip it.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `CreateKinesisStream` | String | `false` | Create a Kinesis Data Stream in this stack (true/false). Takes precedence over `KinesisStreamArn` |
+| `KinesisStreamArn` | String | `` | ARN of an existing Kinesis stream to use as the event source (used when `CreateKinesisStream=false`) |
+| `KinesisShardCount` | Number | `1` | Shard count for the stream created by this stack |
+| `KinesisRetentionPeriodHours` | Number | `24` | Data retention in hours for the created stream (24-8760) |
+| `KinesisStartingPosition` | String | `LATEST` | Starting position for reads (`LATEST` or `TRIM_HORIZON`) |
+| `KinesisBatchSize` | Number | `100` | Maximum records per batch (1-10,000) |
+
+The event source mapping uses a 5-second batching window, one batch per shard (`ParallelizationFactor: 1`), `BisectBatchOnFunctionError`, 3 retry attempts, a 3600-second maximum record age, and `ReportBatchItemFailures`.
+
+When `CreateKinesisStream=true`, the stack creates the stream named `{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}[-{CiSuffix}]-stream`. The stream is deleted when the stack is deleted, so the data in it is lost. Use a separate stack or change the stream's deletion policy if you need to keep the data.
+
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `FunctionName` | Name of the Lambda function |
 | `FunctionArn` | ARN of the Lambda function |
+| `KinesisStreamArn` | ARN of the Kinesis stream created by this stack (only when `CreateKinesisStream=true`) |
 
 ## Deployment Modes
 
@@ -248,6 +268,16 @@ aws logs put-retention-policy \
 aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
 ```
 
+### 4. Kinesis Read Permissions (if using a Kinesis event source)
+
+The execution role needs permission to read from the stream. The CI/CD auto-created role does not include this, so add the permissions to the role you pass as `IAMRoleArn`:
+
+```bash
+aws iam attach-role-policy \
+  --role-name lambda-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole
+```
+
 ## CommaDelimitedList Parameters
 
 Some parameters accept comma-delimited values (VPCSubnetIds, VPCSecurityGroupIds, LambdaLayerArns). Pass them as quoted comma-separated strings:
@@ -344,6 +374,42 @@ aws cloudformation deploy \
 - The default value (`arn:aws:iam::123456789012:role/lambda-execution-role`) is a placeholder and must be overridden
 - Deployment will use the external IAM role and inline boilerplate code
 
+### Example 4: Function Triggered by a Newly Created Kinesis Stream
+
+```bash
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name event-processor \
+  --parameter-overrides \
+    ProjectName=myapp \
+    LambdaFunctionBaseName=event-processor \
+    Environment=stag \
+    S3Bucket=lambda-code-bucket \
+    S3Key=event-processor.zip \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-execution-role \
+    CreateKinesisStream=true \
+    KinesisShardCount=2 \
+    KinesisRetentionPeriodHours=48 \
+    KinesisStartingPosition=TRIM_HORIZON \
+    KinesisBatchSize=500
+```
+
+### Example 5: Function Triggered by an Existing Kinesis Stream
+
+```bash
+aws cloudformation deploy \
+  --template-file cloudformation/template.yaml \
+  --stack-name event-consumer \
+  --parameter-overrides \
+    ProjectName=myapp \
+    LambdaFunctionBaseName=event-consumer \
+    Environment=prod \
+    S3Bucket=lambda-code-bucket \
+    S3Key=event-consumer.zip \
+    IAMRoleArn=arn:aws:iam::123456789012:role/lambda-execution-role \
+    KinesisStreamArn=arn:aws:kinesis:us-east-1:123456789012:stream/orders
+```
+
 ## Troubleshooting
 
 ### Lambda Won't Deploy
@@ -355,6 +421,13 @@ aws cloudformation deploy \
 - Verify S3 bucket and key exist: `aws s3 ls s3://bucket/key`
 - Check S3 object permissions: `aws s3api head-object --bucket bucket --key key`
 - Ensure IAM role has S3 read permissions
+
+### Kinesis Event Source Not Invoking the Function
+
+- Confirm the execution role has Kinesis read permissions (see Prerequisites, step 4)
+- Check the event source mapping state: `aws lambda list-event-source-mappings --function-name your-function`
+- Verify `KinesisStreamArn` is correct when `CreateKinesisStream=false`
+- Failed batches are retried 3 times and then bisected; check the function's CloudWatch logs for errors
 
 ### VPC Connection Issues
 - Verify subnets and security groups exist in same VPC
