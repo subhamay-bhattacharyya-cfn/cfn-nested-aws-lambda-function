@@ -234,6 +234,7 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      # Kinesis policy is added only when a stream event source is configured
       ManagedPolicyArns: !If
         - HasKinesisEventSource
         - - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
