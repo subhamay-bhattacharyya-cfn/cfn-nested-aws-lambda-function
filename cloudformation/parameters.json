@@ -11,6 +11,5 @@
   "CreateSqsQueue": "true",
   "SqsVisibilityTimeout": "60",
   "SqsBatchSize": "10",
-  "SqsMessageRetentionPeriod": "345600",
   "CiSuffix": ""
 }
