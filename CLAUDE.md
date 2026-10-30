@@ -16,6 +16,7 @@ This is a **CloudFormation template repository** that provides a reusable nested
 - Dead Letter Queue (DLQ) support for async invocations
 - Lambda Layers support for dependencies
 - Optional Kinesis Data Stream event source (create a stream or use an existing ARN)
+- Optional SQS queue event source (create a queue or use an existing ARN)
 - External IAM role management for security
 - Automated semantic versioning and releases
 - AWS OIDC authentication for CI/CD deployments
@@ -149,6 +150,29 @@ The template can subscribe the function to a Kinesis Data Stream. Two parameters
 - The auto-created CI role (`CiSuffix` set) gets `AWSLambdaBasicExecutionRole`, plus `AWSLambdaKinesisExecutionRole` when a Kinesis event source is configured (`HasKinesisEventSource`). Production roles need `AWSLambdaKinesisExecutionRole` added externally.
 - The created stream uses `DeletionPolicy: Delete`, so deleting the stack deletes its data.
 
+### SQS Event Source
+
+The template can subscribe the function to an SQS queue. Two parameters control it:
+
+- `CreateSqsQueue` (`'true'`/`'false'`, default `'false'`): creates an `AWS::SQS::Queue` in this stack. Takes precedence over `SqsQueueArn`.
+- `SqsQueueArn`: ARN of an existing queue, used when `CreateSqsQueue` is `'false'`. The placeholder default skips the mapping.
+
+**Resources and conditions:**
+
+- `SqsQueue` exists only under `CreateSqsQueueConfig`. Its name follows the function naming pattern with a `-queue` suffix.
+- `SqsEventSourceMapping` (existing queue) is conditional on `UseExistingSqsQueue`, which means not creating the queue AND `SqsQueueArn` not being the placeholder.
+- `CreatedSqsEventSourceMapping` (created queue) is conditional on `CreateSqsQueueConfig`.
+- The two mappings are separate resources for the same W1030 reason as the Kinesis mappings.
+- `SqsVisibilityTimeout` must be greater than or equal to `Timeout`, or Lambda rejects the mapping.
+
+**Outputs:** `SqsQueueArn` and `SqsQueueUrl` are returned only when the queue is created.
+
+**Caveats:**
+
+- The auto-created CI role (`CiSuffix` set) gets `AWSLambdaSQSQueueExecutionRole` when an SQS event source is configured (`HasSqsEventSource`). Production roles need it added externally.
+- The created queue uses `DeletionPolicy: Delete`, so deleting the stack deletes any messages on it.
+- The queue has no dead-letter queue, and its message retention is hardcoded to 345600 seconds (4 days).
+
 **How it works:**
 1. Parameters are passed as quoted comma-delimited strings in CLI or JSON files
 2. CloudFormation automatically converts them to arrays/lists
@@ -161,7 +185,7 @@ The template uses a **hybrid approach** for IAM role management:
 
 **CI/CD Deployments (with CiSuffix):**
 - Lambda execution role is **automatically created** by the template
-- Includes basic Lambda execution permissions (`AWSLambdaBasicExecutionRole`)
+- Includes basic Lambda execution permissions (`AWSLambdaBasicExecutionRole`), plus the Kinesis or SQS execution policy when that event source is configured
 - Role is ephemeral: deleted when stack is deleted
 - No prerequisites needed for role creation
 
@@ -204,6 +228,7 @@ This separation provides:
 - `FunctionName`: Function name (exported for parent stack)
 - `FunctionArn`: Function ARN (exported for parent stack)
 - `KinesisStreamArn`: ARN of the Kinesis stream created by this stack (only when `CreateKinesisStream=true`)
+- `SqsQueueArn` / `SqsQueueUrl`: ARN and URL of the SQS queue created by this stack (only when `CreateSqsQueue=true`)
 
 **Features:**
 
@@ -214,6 +239,7 @@ This separation provides:
 - Optional Lambda Layers attachment
 - Reserved concurrent execution limits
 - Optional Kinesis event source mapping (see Kinesis Event Source above)
+- Optional SQS event source mapping (see SQS Event Source above)
 - Environment variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
 - JSON structured logging to CloudWatch
 
@@ -422,3 +448,4 @@ Main branch is the release branch. Feature work branches from here and merges ba
 8. **CiSuffix for Ephemeral Deployments**: Optional suffix for CI/CD testing creates unique function names without colliding with permanent deployments
 9. **Semantic Versioning**: Automated releases on main branch based on conventional commits
 10. **Separate Kinesis Event Source Mappings**: The existing-stream and created-stream mappings are separate resources, not one `!If`, so `cfn-lint` does not flag the `KinesisStreamArn` reference (W1030)
+11. **Separate SQS Event Source Mappings**: The existing-queue and created-queue mappings are separate resources, not one `!If`, for the same W1030 reason as Kinesis

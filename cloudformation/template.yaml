@@ -179,6 +179,31 @@ Parameters:
     MaxValue: 10000
     Description: Maximum number of records to read per Kinesis batch (1 to 10,000)
 
+  CreateSqsQueue:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Create an SQS queue in this stack to use as the event source (uses SqsQueueArn if false)
+
+  SqsQueueArn:
+    Type: String
+    Default: 'arn:aws:sqs:us-east-1:123456789012:placeholder'
+    Description: ARN of an existing SQS queue to use as an event source (ignored if CreateSqsQueue is true; leave at the placeholder default to skip the event source mapping)
+
+  SqsVisibilityTimeout:
+    Type: Number
+    Default: 180
+    MinValue: 0
+    MaxValue: 43200
+    Description: Visibility timeout in seconds for the SQS queue created by this stack (must be greater than or equal to Timeout; AWS recommends six times Timeout)
+
+  SqsBatchSize:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 10000
+    Description: Maximum number of messages to read per SQS batch (1 to 10,000)
+
   IAMRoleArn:
     Type: String
     Default: 'arn:aws:iam::123456789012:role/lambda-execution-role'
@@ -217,6 +242,13 @@ Conditions:
   HasKinesisEventSource: !Or
     - !Condition CreateKinesisStreamConfig
     - !Condition UseExistingKinesisStream
+  CreateSqsQueueConfig: !Equals [!Ref CreateSqsQueue, 'true']
+  UseExistingSqsQueue: !And
+    - !Not [!Condition CreateSqsQueueConfig]
+    - !Not [!Equals [!Ref SqsQueueArn, 'arn:aws:sqs:us-east-1:123456789012:placeholder']]
+  HasSqsEventSource: !Or
+    - !Condition CreateSqsQueueConfig
+    - !Condition UseExistingSqsQueue
 
 Resources:
   LambdaExecutionRole:
@@ -234,12 +266,11 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      # Kinesis policy is added only when a stream event source is configured
-      ManagedPolicyArns: !If
-        - HasKinesisEventSource
-        - - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole
-        - - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      # Event source policies are added only when the matching event source is configured
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !If [HasKinesisEventSource, arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole, !Ref 'AWS::NoValue']
+        - !If [HasSqsEventSource, arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole, !Ref 'AWS::NoValue']
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -356,6 +387,51 @@ Resources:
         - ReportBatchItemFailures
       Enabled: true
 
+  SqsQueue:
+    Type: AWS::SQS::Queue
+    Condition: CreateSqsQueueConfig
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      aws:cloudformation:Context:
+        why: Creates an SQS queue as the event source for the Lambda function when no existing queue ARN is provided
+    Properties:
+      QueueName: !If
+        - HasCiSuffix
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-${CiSuffix}-queue'
+        - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-queue'
+      VisibilityTimeout: !Ref SqsVisibilityTimeout
+      MessageRetentionPeriod: 345600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  SqsEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: UseExistingSqsQueue
+    Properties:
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !GetAtt LambdaFunction.Arn
+      BatchSize: !Ref SqsBatchSize
+      MaximumBatchingWindowInSeconds: 5
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      Enabled: true
+
+  CreatedSqsEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: CreateSqsQueueConfig
+    Properties:
+      EventSourceArn: !GetAtt SqsQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
+      BatchSize: !Ref SqsBatchSize
+      MaximumBatchingWindowInSeconds: 5
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      Enabled: true
+
 Outputs:
   FunctionName:
     Description: Name of the Lambda function
@@ -369,3 +445,13 @@ Outputs:
     Condition: CreateKinesisStreamConfig
     Description: ARN of the Kinesis Data Stream created by this stack
     Value: !GetAtt KinesisStream.Arn
+
+  SqsQueueArn:
+    Condition: CreateSqsQueueConfig
+    Description: ARN of the SQS queue created by this stack
+    Value: !GetAtt SqsQueue.Arn
+
+  SqsQueueUrl:
+    Condition: CreateSqsQueueConfig
+    Description: URL of the SQS queue created by this stack
+    Value: !Ref SqsQueue

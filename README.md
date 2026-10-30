@@ -40,6 +40,7 @@ The template is stored in this repository and should be uploaded to an S3 bucket
   - Lambda Layers attachment
   - Reserved concurrent execution limits
   - Optional Kinesis Data Stream event source (create a stream or use an existing one)
+  - Optional SQS queue event source (create a queue or use an existing one)
   - Environment variable configuration
   - External IAM role and CloudWatch Log Group management
 
@@ -62,6 +63,7 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 - ✅ **Lambda Layers** — Attach multiple layers for code sharing and dependencies
 - ✅ **Reserved Concurrency** — Control function scaling and cost
 - ✅ **Kinesis Event Source** — Optionally create a Kinesis Data Stream or subscribe the function to an existing stream
+- ✅ **SQS Event Source** — Optionally create an SQS queue or subscribe the function to an existing queue
 - ✅ **Environment Variables** — Pre-configured variables (ENVIRONMENT, LOG_LEVEL, DYNAMODB_TABLE)
 - ✅ **External Resource Management** — IAM role and log group created externally
 - ✅ **Deterministic Naming** — Project prefix, function name, environment, region
@@ -120,12 +122,12 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 
 ### Kinesis Event Source
 
-The Kinesis event source mapping is created only when a stream is available, either created by this stack or provided by ARN. Leave both `CreateKinesisStream` and `KinesisStreamArn` at their defaults to skip it.
+The Kinesis event source mapping is created only when a stream is available, either created by this stack or provided by ARN. To skip it, set `CreateKinesisStream=false` and leave `KinesisStreamArn` at its placeholder default.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `CreateKinesisStream` | String | `false` | Create a Kinesis Data Stream in this stack (true/false). Takes precedence over `KinesisStreamArn` |
-| `KinesisStreamArn` | String | `` | ARN of an existing Kinesis stream to use as the event source (used when `CreateKinesisStream=false`) |
+| `CreateKinesisStream` | String | `true` | Create a Kinesis Data Stream in this stack (true/false). Takes precedence over `KinesisStreamArn` |
+| `KinesisStreamArn` | String | `arn:aws:kinesis:us-east-1:123456789012:stream/placeholder` | ARN of an existing Kinesis stream to use as the event source (used when `CreateKinesisStream=false`; the placeholder skips the mapping) |
 | `KinesisShardCount` | Number | `1` | Shard count for the stream created by this stack |
 | `KinesisRetentionPeriodHours` | Number | `24` | Data retention in hours for the created stream (24-8760) |
 | `KinesisStartingPosition` | String | `LATEST` | Starting position for reads (`LATEST` or `TRIM_HORIZON`) |
@@ -135,6 +137,19 @@ The event source mapping uses a 5-second batching window, one batch per shard (`
 
 When `CreateKinesisStream=true`, the stack creates the stream named `{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}[-{CiSuffix}]-stream`. The stream is deleted when the stack is deleted, so the data in it is lost. Use a separate stack or change the stream's deletion policy if you need to keep the data.
 
+### SQS Event Source
+
+The SQS event source mapping is created only when a queue is available, either created by this stack or provided by ARN. To skip it, leave `CreateSqsQueue=false` and `SqsQueueArn` at its placeholder default.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `CreateSqsQueue` | String | `false` | Create an SQS queue in this stack (true/false). Takes precedence over `SqsQueueArn` |
+| `SqsQueueArn` | String | `arn:aws:sqs:us-east-1:123456789012:placeholder` | ARN of an existing SQS queue to use as the event source (used when `CreateSqsQueue=false`; the placeholder skips the mapping) |
+| `SqsVisibilityTimeout` | Number | `180` | Visibility timeout in seconds for the created queue (0-43,200). Must be greater than or equal to `Timeout` |
+| `SqsBatchSize` | Number | `10` | Maximum messages per batch (1-10,000) |
+
+The event source mapping uses a 5-second batching window and `ReportBatchItemFailures`. The created queue is named `{ProjectName}-{LambdaFunctionBaseName}-{Environment}-{Region}[-{CiSuffix}]-queue`, keeps messages for 4 days (345,600 seconds), and is deleted when the stack is deleted, so any messages on it are lost. The queue has no dead-letter queue; messages that repeatedly fail stay on the queue until they expire.
+
 ## Outputs
 
 | Output | Description |
@@ -142,6 +157,8 @@ When `CreateKinesisStream=true`, the stack creates the stream named `{ProjectNam
 | `FunctionName` | Name of the Lambda function |
 | `FunctionArn` | ARN of the Lambda function |
 | `KinesisStreamArn` | ARN of the Kinesis stream created by this stack (only when `CreateKinesisStream=true`) |
+| `SqsQueueArn` | ARN of the SQS queue created by this stack (only when `CreateSqsQueue=true`) |
+| `SqsQueueUrl` | URL of the SQS queue created by this stack (only when `CreateSqsQueue=true`) |
 
 ## Deployment Modes
 
@@ -268,14 +285,20 @@ aws logs put-retention-policy \
 aws s3 cp lambda-function.zip s3://my-bucket/lambda-code/
 ```
 
-### 4. Kinesis Read Permissions (if using a Kinesis event source)
+### 4. Event Source Permissions (if using a Kinesis or SQS event source)
 
-The execution role needs permission to read from the stream. The CI/CD auto-created role does not include this, so add the permissions to the role you pass as `IAMRoleArn`:
+The execution role needs permission to read from the stream or queue. The CI/CD auto-created role gets these policies automatically when an event source is configured. Production roles do not, so attach the matching policy to the role you pass as `IAMRoleArn`:
 
 ```bash
+# Kinesis event source
 aws iam attach-role-policy \
   --role-name lambda-execution-role \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole
+
+# SQS event source
+aws iam attach-role-policy \
+  --role-name lambda-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
 ```
 
 ## CommaDelimitedList Parameters
@@ -428,6 +451,14 @@ aws cloudformation deploy \
 - Check the event source mapping state: `aws lambda list-event-source-mappings --function-name your-function`
 - Verify `KinesisStreamArn` is correct when `CreateKinesisStream=false`
 - Failed batches are retried 3 times and then bisected; check the function's CloudWatch logs for errors
+
+### SQS Event Source Not Invoking the Function
+
+- Confirm the execution role has SQS read permissions (see Prerequisites, step 4)
+- Check the event source mapping state: `aws lambda list-event-source-mappings --function-name your-function`
+- Verify `SqsQueueArn` is correct when `CreateSqsQueue=false`
+- If the function times out, check that `SqsVisibilityTimeout` is at least as long as `Timeout`
+- Messages that keep failing stay on the queue until they expire, because there is no dead-letter queue
 
 ### VPC Connection Issues
 - Verify subnets and security groups exist in same VPC

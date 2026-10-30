@@ -8,5 +8,9 @@
   "Timeout": "60",
   "IAMRoleArn": "arn:aws:iam::123456789012:role/lambda-execution-role",
   "LambdaLogGroup": "/aws/lambda/cfn-nested-lambda-function-devl-us-east-1",
+  "CreateSqsQueue": "true",
+  "SqsVisibilityTimeout": "60",
+  "SqsBatchSize": "10",
+  "SqsMessageRetentionPeriod": "345600",
   "CiSuffix": ""
 }
