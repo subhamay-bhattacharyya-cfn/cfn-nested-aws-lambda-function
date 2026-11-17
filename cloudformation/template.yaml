@@ -144,7 +144,7 @@ Parameters:
 
   CreateKinesisStream:
     Type: String
-    Default: 'true'
+    Default: 'false'
     AllowedValues: ['true', 'false']
     Description: Create a Kinesis Data Stream in this stack to use as the event source (uses KinesisStreamArn if false)
 

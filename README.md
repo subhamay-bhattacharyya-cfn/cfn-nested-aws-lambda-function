@@ -122,11 +122,11 @@ The template is stored in this repository and should be uploaded to an S3 bucket
 
 ### Kinesis Event Source
 
-The Kinesis event source mapping is created only when a stream is available, either created by this stack or provided by ARN. To skip it, set `CreateKinesisStream=false` and leave `KinesisStreamArn` at its placeholder default.
+The Kinesis event source mapping is created only when a stream is available, either created by this stack or provided by ARN. With the defaults, the mapping is skipped. Set `CreateKinesisStream=true` only when this stack should create the stream.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `CreateKinesisStream` | String | `true` | Create a Kinesis Data Stream in this stack (true/false). Takes precedence over `KinesisStreamArn` |
+| `CreateKinesisStream` | String | `false` | Create a Kinesis Data Stream in this stack (true/false). Takes precedence over `KinesisStreamArn` |
 | `KinesisStreamArn` | String | `arn:aws:kinesis:us-east-1:123456789012:stream/placeholder` | ARN of an existing Kinesis stream to use as the event source (used when `CreateKinesisStream=false`; the placeholder skips the mapping) |
 | `KinesisShardCount` | Number | `1` | Shard count for the stream created by this stack |
 | `KinesisRetentionPeriodHours` | Number | `24` | Data retention in hours for the created stream (24-8760) |

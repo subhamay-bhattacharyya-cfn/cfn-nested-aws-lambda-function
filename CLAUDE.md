@@ -133,7 +133,7 @@ The template uses CloudFormation's `CommaDelimitedList` type for parameters that
 
 The template can subscribe the function to a Kinesis Data Stream. Two parameters control it:
 
-- `CreateKinesisStream` (`'true'`/`'false'`): creates an `AWS::Kinesis::Stream` in this stack. Takes precedence over `KinesisStreamArn`.
+- `CreateKinesisStream` (`'true'`/`'false'`, default `'false'`): creates an `AWS::Kinesis::Stream` in this stack. Takes precedence over `KinesisStreamArn`. Callers that don't pass it get no stream, so the default must stay `'false'`.
 - `KinesisStreamArn`: ARN of an existing stream, used when `CreateKinesisStream` is `'false'`.
 
 **Resources and conditions:**
