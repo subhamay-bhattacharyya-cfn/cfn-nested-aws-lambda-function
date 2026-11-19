@@ -93,11 +93,6 @@ Parameters:
     AllowedValues: [DEBUG, INFO, WARN, ERROR]
     Description: Value for LOG_LEVEL variable
 
-  DynamoDBTableName:
-    Type: String
-    Default: ''
-    Description: Name of DynamoDB table to reference in environment variables
-
   LambdaLogGroup:
     Type: String
     Description: CloudWatch Log Group name for Lambda function (must be created externally)
@@ -204,6 +199,11 @@ Parameters:
     MaxValue: 10000
     Description: Maximum number of messages to read per SQS batch (1 to 10,000)
 
+  CustomNameValue:
+    Type: String
+    Default: ''
+    Description: Optional value for the CUSTOM environment variable (leave empty to omit the variable)
+
   IAMRoleArn:
     Type: String
     Default: 'arn:aws:iam::123456789012:role/lambda-execution-role'
@@ -233,7 +233,6 @@ Conditions:
     - !Condition HasVPCSecurityGroups
   EnableDLQConfig: !Equals [!Ref EnableDeadLetterQueue, 'true']
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrentExecutions, -1]]
-  HasDynamoDBTable: !Not [!Equals [!Ref DynamoDBTableName, ""]]
   ConfigureLogging: !Not [!Equals [!Ref LambdaLogGroup, ""]]
   CreateKinesisStreamConfig: !Equals [!Ref CreateKinesisStream, 'true']
   UseExistingKinesisStream: !And
@@ -249,6 +248,7 @@ Conditions:
   HasSqsEventSource: !Or
     - !Condition CreateSqsQueueConfig
     - !Condition UseExistingSqsQueue
+  HasCustomNameValue: !Not [!Equals [!Ref CustomNameValue, ""]]
 
 Resources:
   LambdaExecutionRole:
@@ -320,7 +320,7 @@ Resources:
         Variables:
           ENVIRONMENT: !Ref EnvironmentNameValue
           LOG_LEVEL: !Ref LogLevelValue
-          DYNAMODB_TABLE: !If [HasDynamoDBTable, !Ref DynamoDBTableName, !Ref 'AWS::NoValue']
+          CUSTOM: !If [HasCustomNameValue, !Ref CustomNameValue, !Ref 'AWS::NoValue']
       LoggingConfig: !If
         - ConfigureLogging
         - LogFormat: JSON
