@@ -2,6 +2,146 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: 'Nested CloudFormation template to create a Lambda function with flexible configuration for runtime, environment variables, layers, and VPC settings'
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Project and Naming
+        Parameters:
+          - ProjectName
+          - LambdaFunctionBaseName
+          - LambdaFunctionDescription
+          - Environment
+          - CiSuffix
+      - Label:
+          default: Runtime and Code
+        Parameters:
+          - Runtime
+          - Handler
+          - S3Bucket
+          - S3Key
+          - S3ObjectVersion
+          - InlineCode
+      - Label:
+          default: Function Sizing
+        Parameters:
+          - MemorySize
+          - Timeout
+          - ReservedConcurrentExecutions
+          - EphemeralStorage
+      - Label:
+          default: Environment and Logging
+        Parameters:
+          - EnvironmentNameValue
+          - LogLevelValue
+          - CustomNameValue
+          - LambdaLogGroup
+      - Label:
+          default: IAM
+        Parameters:
+          - IAMRoleArn
+      - Label:
+          default: VPC and Layers
+        Parameters:
+          - LambdaLayerArns
+          - EnableVPC
+          - VPCSubnetIds
+          - VPCSecurityGroupIds
+      - Label:
+          default: Dead Letter Queue
+        Parameters:
+          - EnableDeadLetterQueue
+          - DeadLetterQueueArn
+      - Label:
+          default: Kinesis Event Source
+        Parameters:
+          - CreateKinesisStream
+          - KinesisStreamArn
+          - KinesisShardCount
+          - KinesisRetentionPeriodHours
+          - KinesisStartingPosition
+          - KinesisBatchSize
+      - Label:
+          default: SQS Event Source
+        Parameters:
+          - CreateSqsQueue
+          - SqsQueueArn
+          - SqsVisibilityTimeout
+          - SqsBatchSize
+    ParameterLabels:
+      ProjectName:
+        default: Project name
+      LambdaFunctionBaseName:
+        default: Function base name
+      LambdaFunctionDescription:
+        default: Function description
+      Environment:
+        default: Environment
+      CiSuffix:
+        default: CI/CD suffix
+      Runtime:
+        default: Runtime
+      Handler:
+        default: Handler
+      S3Bucket:
+        default: Code S3 bucket
+      S3Key:
+        default: Code S3 key
+      S3ObjectVersion:
+        default: Code S3 object version
+      InlineCode:
+        default: Inline code
+      MemorySize:
+        default: Memory (MB)
+      Timeout:
+        default: Timeout (seconds)
+      ReservedConcurrentExecutions:
+        default: Reserved concurrency
+      EphemeralStorage:
+        default: Ephemeral storage (MB)
+      EnvironmentNameValue:
+        default: ENVIRONMENT value
+      LogLevelValue:
+        default: LOG_LEVEL value
+      CustomNameValue:
+        default: CUSTOM value
+      LambdaLogGroup:
+        default: Log group name
+      IAMRoleArn:
+        default: Execution role ARN
+      LambdaLayerArns:
+        default: Layer ARNs
+      EnableVPC:
+        default: Enable VPC
+      VPCSubnetIds:
+        default: VPC subnet IDs
+      VPCSecurityGroupIds:
+        default: VPC security group IDs
+      EnableDeadLetterQueue:
+        default: Enable dead letter queue
+      DeadLetterQueueArn:
+        default: Dead letter queue ARN
+      CreateKinesisStream:
+        default: Create Kinesis stream
+      KinesisStreamArn:
+        default: Existing Kinesis stream ARN
+      KinesisShardCount:
+        default: Kinesis shard count
+      KinesisRetentionPeriodHours:
+        default: Kinesis retention (hours)
+      KinesisStartingPosition:
+        default: Kinesis starting position
+      KinesisBatchSize:
+        default: Kinesis batch size
+      CreateSqsQueue:
+        default: Create SQS queue
+      SqsQueueArn:
+        default: Existing SQS queue ARN
+      SqsVisibilityTimeout:
+        default: SQS visibility timeout (seconds)
+      SqsBatchSize:
+        default: SQS batch size
+
 Parameters:
   ProjectName:
     Type: String
@@ -17,6 +157,13 @@ Parameters:
     Default: 'lambda-function'
     Description: Base name for the Lambda function (environment and region will be appended)
 
+  LambdaFunctionDescription:
+    Type: String
+    Default: ''
+    MaxLength: 256
+    ConstraintDescription: Lambda function description must be 256 characters or fewer
+    Description: Optional description of the Lambda function (leave empty to omit; maximum 256 characters)
+    
   Environment:
     Type: String
     Default: 'devl'
@@ -307,6 +454,7 @@ Conditions:
     - !Condition CreateSqsQueueConfig
     - !Condition UseExistingSqsQueue
   HasCustomNameValue: !Not [!Equals [!Ref CustomNameValue, ""]]
+  HasLambdaFunctionDescription: !Not [!Equals [!Ref LambdaFunctionDescription, ""]]
 
 Resources:
   LambdaExecutionRole:
@@ -347,6 +495,7 @@ Resources:
         - HasCiSuffix
         - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}-${CiSuffix}'
         - !Sub '${ProjectName}-${LambdaFunctionBaseName}-${Environment}-${AWS::Region}'
+      Description: !If [HasLambdaFunctionDescription, !Ref LambdaFunctionDescription, !Ref 'AWS::NoValue']
       Runtime: !Ref Runtime
       Handler: !Ref Handler
       Role: !If
