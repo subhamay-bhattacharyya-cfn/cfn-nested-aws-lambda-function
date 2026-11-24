@@ -34,7 +34,7 @@ Parameters:
 
   Handler:
     Type: String
-    Default: 'lambda.handler'
+    Default: 'lambda_function.handler'
     Description: Lambda function handler (e.g., index.handler for Node.js, lambda_function.lambda_handler for Python)
     MinLength: 1
 
