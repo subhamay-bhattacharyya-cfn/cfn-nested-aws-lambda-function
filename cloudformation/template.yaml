@@ -34,7 +34,7 @@ Parameters:
 
   Handler:
     Type: String
-    Default: 'index.handler'
+    Default: 'lambda.handler'
     Description: Lambda function handler (e.g., index.handler for Node.js, lambda_function.lambda_handler for Python)
     MinLength: 1
 
@@ -56,11 +56,69 @@ Parameters:
   InlineCode:
     Type: String
     Default: |
-      def lambda_handler(event, context):
-          return {
-              'statusCode': 200,
-              'body': 'Hello World'
-          }
+      """
+      AWS Lambda boilerplate template (event-source agnostic).
+
+      Entry point : lambda_function.handler   (set the handler to "lambda_function.handler")
+      Runtime     : Python 3.12 (standard library + boto3, which the runtime provides)
+
+      The handler passes the raw event to process_event() and does not assume a
+      trigger type. Add parsing for your own event shape inside process_event().
+      Replace the TODO sections with your business logic.
+      """
+
+      import json
+      import logging
+      import os
+      from typing import Any, Dict
+
+      # ---------------------------------------------------------------------------
+      # Configuration
+      # ---------------------------------------------------------------------------
+      LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+      # Optional JSON blob in one env var, e.g. APP_CONFIG='{"TABLE_NAME": "my-table"}'
+      APP_CONFIG: Dict[str, Any] = json.loads(os.environ.get("APP_CONFIG", "{}"))
+
+      logger = logging.getLogger()
+      logger.setLevel(LOG_LEVEL)
+
+      # Create SDK clients once per container, outside the handler, so warm
+      # invocations reuse them. Example:
+      # import boto3
+      # client = boto3.client("<service>")
+
+
+      # ---------------------------------------------------------------------------
+      # Business logic (TODO: replace)
+      # ---------------------------------------------------------------------------
+      def process_event(event: Any, context: Any) -> Any:
+          """
+          Core logic. Receives the raw event exactly as Lambda delivers it.
+          TODO: parse the event shape you expect and do the work.
+
+          Return any JSON-serializable value. Raise an exception to signal failure;
+          the invoking service decides what to do with it (retry, DLQ, or error).
+          """
+          logger.info("Received event with keys: %s", list(event.keys()) if isinstance(event, dict) else type(event).__name__)
+          return {"message": "ok"}
+
+
+      # ---------------------------------------------------------------------------
+      # Entry point
+      # ---------------------------------------------------------------------------
+      def handler(event: Any, context: Any) -> Any:
+          """
+          Lambda entry point. Logs the request ID, delegates to process_event(),
+          and lets exceptions propagate so the trigger's normal retry behavior applies.
+          """
+          request_id = getattr(context, "aws_request_id", "local")
+          logger.info("Request %s started", request_id)
+
+          result = process_event(event, context)
+
+          logger.info("Request %s finished", request_id)
+          return result
     Description: Python boilerplate code for Lambda function (used if S3Bucket is empty)
 
   MemorySize:
